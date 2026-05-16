@@ -45,6 +45,13 @@ type BuildingData = {
   populationBonus: number;
 };
 
+type TrainingDefinition = {
+  label: string;
+  cost: Partial<Record<Resource, number>>;
+  population: number;
+  durationMs: number;
+};
+
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1600;
 const TILE_SIZE = 96;
@@ -67,6 +74,20 @@ const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
   madera: 120,
   piedra: 40,
 };
+const TRAINING: Record<UnitKind, TrainingDefinition> = {
+  aldeano: {
+    label: "Aldeano",
+    cost: { maiz: 50 },
+    population: 1,
+    durationMs: 1400,
+  },
+  guerrero: {
+    label: "Guerrero",
+    cost: { maiz: 60, obsidiana: 20 },
+    population: 1,
+    durationMs: 1700,
+  },
+};
 
 class DemoScene extends Phaser.Scene {
   private selectedUnit?: Phaser.GameObjects.Container;
@@ -80,6 +101,10 @@ class DemoScene extends Phaser.Scene {
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
   private resourceNodes: ResourceNode[] = [];
   private buildings: BuildingData[] = [];
+  private units: Phaser.GameObjects.Container[] = [];
+  private nextUnitId = 2;
+  private isTrainingVillager = false;
+  private isTrainingWarrior = false;
   private population = 2;
   private populationLimit = 5;
   private resources: Record<Resource, number> = {
@@ -139,6 +164,8 @@ class DemoScene extends Phaser.Scene {
     this.wasd = this.input.keyboard?.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
     this.input.keyboard?.on("keydown-H", () => this.startHousePlacement());
     this.input.keyboard?.on("keydown-T", () => this.startTelpochcalliPlacement());
+    this.input.keyboard?.on("keydown-V", () => this.trainVillager());
+    this.input.keyboard?.on("keydown-G", () => this.trainWarrior());
   }
 
   update(_time: number, delta: number) {
@@ -337,6 +364,7 @@ class DemoScene extends Phaser.Scene {
       }
     });
 
+    this.units.push(unit);
     return unit;
   }
 
@@ -615,8 +643,97 @@ class DemoScene extends Phaser.Scene {
     this.updateHudResources();
     const extra = building.kind === "casa"
       ? ` Limite de poblacion: ${this.population}/${this.populationLimit}.`
-      : " Listo para entrenar guerreros cuando agreguemos produccion.";
+      : " Presiona G para entrenar guerreros.";
     this.cancelBuildMode(`${building.label} construido.${extra}`);
+  }
+
+  private trainVillager() {
+    if (this.isTrainingVillager) {
+      this.setStatus("El centro ceremonial ya esta entrenando un aldeano.");
+      return;
+    }
+
+    if (!this.canTrain("aldeano")) return;
+
+    this.isTrainingVillager = true;
+    this.spendResources(TRAINING.aldeano.cost);
+    this.population += TRAINING.aldeano.population;
+    this.updateHudResources();
+    this.setStatus(`Entrenando aldeano (${TRAINING.aldeano.durationMs / 1000}s).`);
+
+    this.time.delayedCall(TRAINING.aldeano.durationMs, () => {
+      const spawn = this.getSpawnPointNear(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y, 230);
+      const unit = this.createUnit(spawn.x, spawn.y, {
+        id: `aldeano-${this.nextUnitId++}`,
+        kind: "aldeano",
+        label: "Aldeano",
+        color: 0xe5c16f,
+        speed: 170,
+      });
+      this.isTrainingVillager = false;
+      this.selectUnit(unit);
+      this.setStatus("Aldeano entrenado en el centro ceremonial.");
+      this.updateHudResources();
+    });
+  }
+
+  private trainWarrior() {
+    if (this.isTrainingWarrior) {
+      this.setStatus("El telpochcalli ya esta entrenando un guerrero.");
+      return;
+    }
+
+    const telpochcalli = this.buildings.find((building) => building.kind === "telpochcalli");
+    if (!telpochcalli) {
+      this.setStatus("Construye un telpochcalli antes de entrenar guerreros.");
+      return;
+    }
+
+    if (!this.canTrain("guerrero")) return;
+
+    this.isTrainingWarrior = true;
+    this.spendResources(TRAINING.guerrero.cost);
+    this.population += TRAINING.guerrero.population;
+    this.updateHudResources();
+    this.setStatus(`Entrenando guerrero (${TRAINING.guerrero.durationMs / 1000}s).`);
+
+    this.time.delayedCall(TRAINING.guerrero.durationMs, () => {
+      const spawn = this.getSpawnPointNear(telpochcalli.x, telpochcalli.y, 150);
+      const unit = this.createUnit(spawn.x, spawn.y, {
+        id: `guerrero-${this.nextUnitId++}`,
+        kind: "guerrero",
+        label: "Guerrero",
+        color: 0xb84a3b,
+        speed: 190,
+      });
+      this.isTrainingWarrior = false;
+      this.selectUnit(unit);
+      this.setStatus("Guerrero entrenado en el telpochcalli.");
+      this.updateHudResources();
+    });
+  }
+
+  private canTrain(kind: UnitKind) {
+    const training = TRAINING[kind];
+    if (this.population + training.population > this.populationLimit) {
+      this.setStatus(`Limite de poblacion alcanzado: ${this.population}/${this.populationLimit}. Construye casas.`);
+      return false;
+    }
+
+    if (!this.canAfford(training.cost)) {
+      this.setStatus(`Recursos insuficientes para ${training.label.toLowerCase()}. Necesitas ${this.formatCost(training.cost)}.`);
+      return false;
+    }
+
+    return true;
+  }
+
+  private getSpawnPointNear(x: number, y: number, distance: number) {
+    const angle = Phaser.Math.DegToRad(35 + this.units.length * 37);
+    return new Phaser.Math.Vector2(
+      Phaser.Math.Clamp(x + Math.cos(angle) * distance, 80, WORLD_WIDTH - 80),
+      Phaser.Math.Clamp(y + Math.sin(angle) * distance, 80, WORLD_HEIGHT - 80),
+    );
   }
 
   private cancelBuildMode(message: string) {
@@ -870,7 +987,7 @@ class DemoScene extends Phaser.Scene {
 
   private formatResources() {
     const resourceValues = RESOURCES.map((resource) => `${resource}: ${this.resources[resource]}`).join("   ");
-    return `${resourceValues}   poblacion: ${this.population}/${this.populationLimit}`;
+    return `${resourceValues}   poblacion: ${this.population}/${this.populationLimit}   V aldeano   G guerrero`;
   }
 
   private formatCarryCapacities() {
@@ -912,6 +1029,10 @@ class DemoScene extends Phaser.Scene {
     document.body.dataset.buildings = JSON.stringify(this.buildings);
     document.body.dataset.carryCapacity = JSON.stringify(CARRY_CAPACITY);
     document.body.dataset.units = JSON.stringify(this.getDebugUnits());
+    document.body.dataset.training = JSON.stringify({
+      villager: this.isTrainingVillager,
+      warrior: this.isTrainingWarrior,
+    });
   }
 
   private pulseResourceGain(x: number, y: number, message: string) {
@@ -950,6 +1071,34 @@ class DemoScene extends Phaser.Scene {
       },
       getCarryCapacity: () => ({ ...CARRY_CAPACITY }),
       getUnits: () => this.getDebugUnits(),
+      trainVillager: () => {
+        this.trainVillager();
+        return {
+          resources: { ...this.resources },
+          population: {
+            current: this.population,
+            limit: this.populationLimit,
+          },
+          training: {
+            villager: this.isTrainingVillager,
+            warrior: this.isTrainingWarrior,
+          },
+        };
+      },
+      trainWarrior: () => {
+        this.trainWarrior();
+        return {
+          resources: { ...this.resources },
+          population: {
+            current: this.population,
+            limit: this.populationLimit,
+          },
+          training: {
+            villager: this.isTrainingVillager,
+            warrior: this.isTrainingWarrior,
+          },
+        };
+      },
       gatherFirst: (resource: Resource) => {
         const node = this.resourceNodes.find((candidate) => candidate.resource === resource);
         if (!this.selectedUnit || !node) return false;
