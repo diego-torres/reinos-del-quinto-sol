@@ -23,11 +23,24 @@ type ResourceNode = {
   text: Phaser.GameObjects.Text;
 };
 
+type BuildingKind = "casa";
+
+type BuildingData = {
+  id: string;
+  kind: BuildingKind;
+  label: string;
+  x: number;
+  y: number;
+  populationBonus: number;
+};
+
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1600;
 const TILE_SIZE = 96;
 const GATHER_INTERVAL_MS = 1000;
 const GATHER_AMOUNT = 10;
+const HOUSE_WOOD_COST = 50;
+const HOUSE_POPULATION_BONUS = 5;
 
 class DemoScene extends Phaser.Scene {
   private selectedUnit?: Phaser.GameObjects.Container;
@@ -36,8 +49,12 @@ class DemoScene extends Phaser.Scene {
   private wasd?: Record<string, Phaser.Input.Keyboard.Key>;
   private statusText?: Phaser.GameObjects.Text;
   private resourceText?: Phaser.GameObjects.Text;
+  private buildMode?: BuildingKind;
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
   private resourceNodes: ResourceNode[] = [];
+  private buildings: BuildingData[] = [];
+  private population = 2;
+  private populationLimit = 5;
   private resources: Record<Resource, number> = {
     maiz: 200,
     madera: 200,
@@ -79,6 +96,11 @@ class DemoScene extends Phaser.Scene {
     this.installDebugApi();
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (pointer.leftButtonDown() && this.buildMode) {
+        this.placeBuilding(pointer.worldX, pointer.worldY);
+        return;
+      }
+
       if (pointer.rightButtonDown()) {
         this.handleRightClick(pointer.worldX, pointer.worldY);
       }
@@ -87,6 +109,7 @@ class DemoScene extends Phaser.Scene {
     this.input.mouse?.disableContextMenu();
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.wasd = this.input.keyboard?.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.keyboard?.on("keydown-H", () => this.startHousePlacement());
   }
 
   update(_time: number, delta: number) {
@@ -223,6 +246,17 @@ class DemoScene extends Phaser.Scene {
     base.add(this.add.text(0, 158, "Centro ceremonial", labelStyle(15)).setOrigin(0.5));
   }
 
+  private drawHouse(x: number, y: number) {
+    const house = this.add.container(x, y);
+    house.setDepth(2);
+    house.add(this.add.ellipse(0, 38, 92, 24, 0x000000, 0.18));
+    house.add(this.add.rectangle(0, 22, 86, 52, 0xb98a58).setStrokeStyle(4, 0x5a3a24));
+    house.add(this.add.triangle(0, -26, -52, 20, 0, -60, 52, 20, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21));
+    house.add(this.add.rectangle(0, 36, 24, 28, 0x3c281d).setStrokeStyle(2, 0x20140f));
+    house.add(this.add.rectangle(-24, 18, 16, 14, 0xf0c94a, 0.45).setStrokeStyle(2, 0x5a3a24));
+    house.add(this.add.text(0, 82, "Casa", labelStyle(13)).setOrigin(0.5));
+  }
+
   private createUnit(x: number, y: number, data: UnitData) {
     const unit = this.add.container(x, y);
     unit.setData("unit", data);
@@ -265,7 +299,7 @@ class DemoScene extends Phaser.Scene {
 
     const unitData = unit.getData("unit") as UnitData;
     const hint = unitData.kind === "aldeano"
-      ? "Clic derecho en recurso para recolectar."
+      ? "Clic derecho en recurso para recolectar. H para construir casa."
       : "Clic derecho para mover.";
     this.setStatus(`${unitData.label} seleccionado. ${hint}`);
   }
@@ -376,7 +410,7 @@ class DemoScene extends Phaser.Scene {
   }
 
   private createHud() {
-    const panel = this.add.rectangle(18, 18, 660, 122, 0x17261d, 0.86).setOrigin(0);
+    const panel = this.add.rectangle(18, 18, 780, 122, 0x17261d, 0.86).setOrigin(0);
     panel.setScrollFactor(0);
     panel.setStrokeStyle(2, 0xd7bc73, 0.55);
 
@@ -402,6 +436,86 @@ class DemoScene extends Phaser.Scene {
   private setStatus(message: string) {
     this.statusText?.setText(message);
     document.body.dataset.status = message;
+  }
+
+  private startHousePlacement() {
+    if (!this.selectedUnit) return;
+
+    const unitData = this.selectedUnit.getData("unit") as UnitData;
+    if (unitData.kind !== "aldeano") {
+      this.setStatus("Selecciona un aldeano para construir casas.");
+      return;
+    }
+
+    if (this.resources.madera < HOUSE_WOOD_COST) {
+      this.setStatus(`Madera insuficiente para casa. Necesitas ${HOUSE_WOOD_COST}.`);
+      return;
+    }
+
+    this.buildMode = "casa";
+    this.selectedUnit.setData("gatherTarget", undefined);
+    this.selectedUnit.setData("gatherElapsed", 0);
+    this.selectedUnit.setData("target", undefined);
+    this.setStatus(`Modo construccion: casa cuesta ${HOUSE_WOOD_COST} madera. Clic izquierdo para colocar.`);
+  }
+
+  private placeBuilding(x: number, y: number) {
+    if (this.buildMode !== "casa") return;
+
+    if (!this.selectedUnit) {
+      this.cancelBuildMode("Selecciona un aldeano para construir.");
+      return;
+    }
+
+    const unitData = this.selectedUnit.getData("unit") as UnitData;
+    if (unitData.kind !== "aldeano") {
+      this.cancelBuildMode("Solo los aldeanos pueden construir casas.");
+      return;
+    }
+
+    if (this.resources.madera < HOUSE_WOOD_COST) {
+      this.cancelBuildMode(`Madera insuficiente para casa. Necesitas ${HOUSE_WOOD_COST}.`);
+      return;
+    }
+
+    if (!this.canPlaceHouseAt(x, y)) {
+      this.setStatus("No puedes colocar la casa tan cerca de otra estructura o recurso.");
+      return;
+    }
+
+    const building: BuildingData = {
+      id: `casa-${this.buildings.length + 1}`,
+      kind: "casa",
+      label: "Casa",
+      x,
+      y,
+      populationBonus: HOUSE_POPULATION_BONUS,
+    };
+
+    this.resources.madera -= HOUSE_WOOD_COST;
+    this.populationLimit += HOUSE_POPULATION_BONUS;
+    this.buildings.push(building);
+    this.drawHouse(x, y);
+    this.updateHudResources();
+    this.cancelBuildMode(`Casa construida. Limite de poblacion: ${this.population}/${this.populationLimit}.`);
+  }
+
+  private cancelBuildMode(message: string) {
+    this.buildMode = undefined;
+    this.setStatus(message);
+  }
+
+  private canPlaceHouseAt(x: number, y: number) {
+    if (x < 80 || y < 80 || x > WORLD_WIDTH - 80 || y > WORLD_HEIGHT - 80) return false;
+
+    const nearResource = this.resourceNodes.some((node) => {
+      return Phaser.Math.Distance.Between(x, y, node.x, node.y) < node.radius + 54;
+    });
+    if (nearResource) return false;
+
+    return !this.buildings.some((building) => {
+      return Phaser.Math.Distance.Between(x, y, building.x, building.y) < 112;
+    });
   }
 
   private findResourceNodeAt(x: number, y: number) {
@@ -460,7 +574,8 @@ class DemoScene extends Phaser.Scene {
   }
 
   private formatResources() {
-    return RESOURCES.map((resource) => `${resource}: ${this.resources[resource]}`).join("   ");
+    const resourceValues = RESOURCES.map((resource) => `${resource}: ${this.resources[resource]}`).join("   ");
+    return `${resourceValues}   poblacion: ${this.population}/${this.populationLimit}`;
   }
 
   private updateResourceNodeLabel(node: ResourceNode) {
@@ -475,6 +590,11 @@ class DemoScene extends Phaser.Scene {
       resource: node.resource,
       amount: node.amount,
     })));
+    document.body.dataset.population = JSON.stringify({
+      current: this.population,
+      limit: this.populationLimit,
+    });
+    document.body.dataset.buildings = JSON.stringify(this.buildings);
   }
 
   private pulseResourceGain(x: number, y: number, message: string) {
@@ -519,6 +639,18 @@ class DemoScene extends Phaser.Scene {
 
         this.sendUnitToGather(this.selectedUnit, node);
         return true;
+      },
+      buildHouseAt: (x: number, y: number) => {
+        this.startHousePlacement();
+        this.placeBuilding(x, y);
+        return {
+          resources: { ...this.resources },
+          population: {
+            current: this.population,
+            limit: this.populationLimit,
+          },
+          buildings: [...this.buildings],
+        };
       },
     };
 
