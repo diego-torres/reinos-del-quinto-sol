@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 144" role="img" aria-labelledby="title desc">
+  <title id="title">Centro ceremonial</title>
+  <desc id="desc">Edificio piramidal simple para el primer prototipo.</desc>
+  <rect x="20" y="94" width="152" height="34" fill="#b9a66f" stroke="#735f38" stroke-width="4"/>
+  <rect x="38" y="64" width="116" height="32" fill="#c8b77a" stroke="#735f38" stroke-width="4"/>
+  <rect x="60" y="38" width="72" height="28" fill="#d5c585" stroke="#735f38" stroke-width="4"/>
+  <rect x="78" y="16" width="36" height="24" fill="#7d3f2b" stroke="#4d2c21" stroke-width="4"/>
+  <rect x="84" y="64" width="24" height="64" fill="#8e7445" opacity=".45"/>
+  <path d="M84 64h24M80 76h32M76 88h40M72 100h48M68 112h56" stroke="#5c4b31" stroke-width="3"/>
+</svg>

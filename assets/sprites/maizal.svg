@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 96" role="img" aria-labelledby="title desc">
+  <title id="title">Maizal</title>
+  <desc id="desc">Grupo simple de plantas de maiz para el mapa.</desc>
+  <rect width="128" height="96" rx="8" fill="#32613e"/>
+  <g transform="translate(18 18)">
+    <g fill="#73a942">
+      <rect x="0" y="12" width="5" height="46" rx="2"/>
+      <rect x="24" y="6" width="5" height="52" rx="2"/>
+      <rect x="48" y="12" width="5" height="46" rx="2"/>
+      <rect x="72" y="8" width="5" height="50" rx="2"/>
+    </g>
+    <g fill="#f0c94a">
+      <ellipse cx="8" cy="24" rx="7" ry="13"/>
+      <ellipse cx="32" cy="20" rx="7" ry="13"/>
+      <ellipse cx="56" cy="26" rx="7" ry="13"/>
+      <ellipse cx="80" cy="22" rx="7" ry="13"/>
+    </g>
+    <g stroke="#9bbb4e" stroke-width="5" stroke-linecap="round">
+      <path d="M3 38l-15-12M27 42l-16-10M52 38l15-12M76 42l17-11"/>
+    </g>
+  </g>
+</svg>

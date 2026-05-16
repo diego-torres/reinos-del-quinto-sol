@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 96" role="img" aria-labelledby="title desc">
+  <title id="title">Bosque</title>
+  <desc id="desc">Recurso de madera con arboles simples.</desc>
+  <rect width="128" height="96" rx="8" fill="#2d5939"/>
+  <g>
+    <rect x="26" y="50" width="10" height="30" rx="4" fill="#6b4328"/>
+    <path d="M31 14L7 58h48z" fill="#1c6b3f"/>
+    <path d="M31 4L12 40h38z" fill="#23824a"/>
+    <rect x="72" y="52" width="10" height="28" rx="4" fill="#6b4328"/>
+    <path d="M77 18L51 62h52z" fill="#1c6b3f"/>
+    <path d="M77 8L57 44h40z" fill="#23824a"/>
+  </g>
+</svg>

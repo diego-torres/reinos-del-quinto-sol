@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Piedra</title>
+  <desc id="desc">Cantera simple para recurso de piedra.</desc>
+  <ellipse cx="48" cy="78" rx="31" ry="9" fill="#000" opacity=".18"/>
+  <circle cx="42" cy="46" r="28" fill="#b7b59e"/>
+  <circle cx="64" cy="58" r="23" fill="#8d8b78"/>
+  <circle cx="28" cy="62" r="18" fill="#d5d1b8"/>
+  <path d="M27 43l17 11 16-21M50 72l14-14 18 4" stroke="#6d6a5c" stroke-width="4" fill="none" stroke-linecap="round"/>
+</svg>

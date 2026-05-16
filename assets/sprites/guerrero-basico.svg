@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Guerrero basico</title>
+  <desc id="desc">Sprite conceptual simple de guerrero con lanza y escudo.</desc>
+  <ellipse cx="48" cy="80" rx="27" ry="8" fill="#000" opacity=".22"/>
+  <ellipse cx="48" cy="50" rx="18" ry="25" fill="#b84a3b"/>
+  <circle cx="48" cy="22" r="13" fill="#c98957"/>
+  <path d="M36 13l12-11 12 11-12 8z" fill="#223d63"/>
+  <rect x="67" y="18" width="6" height="66" rx="3" fill="#2b201a" transform="rotate(-19 70 51)"/>
+  <path d="M54 39c18 3 21 24 5 33-14-8-17-25-5-33z" fill="#d7bc73" stroke="#4d2c21" stroke-width="3"/>
+  <path d="M36 58h24v15H36z" fill="#283f2d"/>
+</svg>
