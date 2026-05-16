@@ -19,17 +19,36 @@ export type OnlineUnitState = {
   speed: number;
   health: number;
   maxHealth: number;
+  cargo: {
+    resource?: Resource;
+    amount: number;
+  };
+  workState: "idle" | "moving" | "gathering" | "returning";
+  gatherTargetId?: string;
 };
 
 export type OnlinePlayerState = {
   id: string;
   slot: number;
+  resources: Record<Resource, number>;
+};
+
+export type OnlineResourceNodeState = {
+  id: string;
+  resource: Resource;
+  label: string;
+  x: number;
+  y: number;
+  radius: number;
+  amount: number;
+  depleted: boolean;
 };
 
 export type OnlineGameState = {
   tick: number;
   players: OnlinePlayerState[];
   units: OnlineUnitState[];
+  resourceNodes: OnlineResourceNodeState[];
 };
 
 export type ServerMessage =
@@ -52,4 +71,13 @@ export type ClientMessage =
         x: number;
         y: number;
       };
+    }
+  | {
+      type: "gather-resource";
+      unitId: string;
+      resourceNodeId: string;
+    }
+  | {
+      type: "deposit-resources";
+      unitId: string;
     };

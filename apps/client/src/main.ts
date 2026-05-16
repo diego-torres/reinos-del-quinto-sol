@@ -511,11 +511,19 @@ class DemoScene extends Phaser.Scene {
         return;
       }
 
+      if (this.onlineMode && this.sendOnlineGatherCommand(unitData, resourceNode)) {
+        return;
+      }
+
       this.sendUnitToGather(this.selectedUnit, resourceNode);
       return;
     }
 
     if (this.isPointInCeremonialCenter(x, y)) {
+      if (this.onlineMode && this.sendOnlineDepositCommand(unitData)) {
+        return;
+      }
+
       this.sendSelectedUnitToManualDeposit(unitData);
       return;
     }
@@ -739,7 +747,11 @@ class DemoScene extends Phaser.Scene {
       unit.setPosition(unitState.x, unitState.y);
       unit.setData("health", unitState.health);
       unit.setData("target", undefined);
+      unit.setData("cargo", unitState.cargo);
+      unit.setData("workState", unitState.workState);
+      unit.setData("gatherTarget", this.resourceNodes.find((node) => node.id === unitState.gatherTargetId));
       this.updateUnitHealthLabel(unit);
+      this.updateUnitCargoLabel(unit);
     });
 
     const activeIds = new Set(state.units.map((unit) => unit.id));
@@ -765,8 +777,30 @@ class DemoScene extends Phaser.Scene {
       this.selectionRing.setPosition(this.selectedUnit.x, this.selectedUnit.y + 8);
     }
 
+    this.applyOnlineResources(state);
     this.onlineText?.setText(`online: ${this.playerId ?? "conectado"} | jugadores ${state.players.length}`);
     this.syncDomState();
+  }
+
+  private applyOnlineResources(state: OnlineGameState) {
+    const player = state.players.find((candidate) => candidate.id === this.playerId);
+    if (player) {
+      this.resources = { ...player.resources };
+      this.updateHudResources();
+    }
+
+    state.resourceNodes.forEach((serverNode) => {
+      const node = this.resourceNodes.find((candidate) => candidate.id === serverNode.id);
+      if (!node) return;
+
+      node.amount = serverNode.amount;
+      if (serverNode.depleted) {
+        this.depleteResourceNode(node);
+      } else {
+        node.depleted = false;
+        node.text.setText(`${node.label} (${node.amount})`);
+      }
+    });
   }
 
   private clearLocalUnits() {
@@ -814,6 +848,45 @@ class DemoScene extends Phaser.Scene {
       target: { x, y },
     }));
     this.setStatus(`${unitData.label} recibe orden online a ${Math.round(x)}, ${Math.round(y)}.`);
+    return true;
+  }
+
+  private sendOnlineGatherCommand(unitData: UnitData, resourceNode: ResourceNode) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+
+    if (unitData.ownerId !== this.playerId) {
+      this.setStatus("Esa unidad pertenece a otro jugador.");
+      return true;
+    }
+
+    this.socket.send(JSON.stringify({
+      type: "gather-resource",
+      unitId: unitData.id,
+      resourceNodeId: resourceNode.id,
+    }));
+    this.setStatus(`${unitData.label} recibe orden online de recolectar ${resourceNode.label.toLowerCase()}.`);
+    return true;
+  }
+
+  private sendOnlineDepositCommand(unitData: UnitData) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+
+    if (unitData.ownerId !== this.playerId) {
+      this.setStatus("Esa unidad pertenece a otro jugador.");
+      return true;
+    }
+
+    const cargo = this.getUnitCargo(this.selectedUnit!);
+    if (!cargo.resource || cargo.amount <= 0) {
+      this.setStatus(`${unitData.label} no trae recursos para depositar.`);
+      return true;
+    }
+
+    this.socket.send(JSON.stringify({
+      type: "deposit-resources",
+      unitId: unitData.id,
+    }));
+    this.setStatus(`${unitData.label} recibe orden online de depositar.`);
     return true;
   }
 
