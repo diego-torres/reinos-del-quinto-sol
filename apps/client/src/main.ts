@@ -1,5 +1,12 @@
 import Phaser from "phaser";
-import { GAME_TITLE, RESOURCES, type Resource } from "@reinos/shared";
+import {
+  GAME_TITLE,
+  RESOURCES,
+  type OnlineGameState,
+  type OnlineUnitState,
+  type Resource,
+  type ServerMessage,
+} from "@reinos/shared";
 import "./styles.css";
 
 type UnitKind = "aldeano" | "guerrero";
@@ -10,6 +17,7 @@ type UnitData = {
   label: string;
   color: number;
   speed: number;
+  ownerId?: string;
 };
 
 type UnitStats = {
@@ -138,6 +146,7 @@ class DemoScene extends Phaser.Scene {
   private statusText?: Phaser.GameObjects.Text;
   private resourceText?: Phaser.GameObjects.Text;
   private carryCapacityText?: Phaser.GameObjects.Text;
+  private onlineText?: Phaser.GameObjects.Text;
   private buildMode?: BuildingKind;
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
   private resourceNodes: ResourceNode[] = [];
@@ -147,6 +156,11 @@ class DemoScene extends Phaser.Scene {
   private nextUnitId = 2;
   private isTrainingVillager = false;
   private isTrainingWarrior = false;
+  private socket?: WebSocket;
+  private playerId?: string;
+  private onlineState?: OnlineGameState;
+  private onlineMode = false;
+  private initializedOnlineUnits = false;
   private population = 2;
   private populationLimit = 5;
   private resources: Record<Resource, number> = {
@@ -190,6 +204,7 @@ class DemoScene extends Phaser.Scene {
     this.selectUnit(aldeano);
     this.installDebugApi();
     this.syncDomState();
+    this.connectToServer();
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.leftButtonDown() && this.buildMode) {
@@ -438,7 +453,13 @@ class DemoScene extends Phaser.Scene {
     const marker = data.kind === "guerrero"
       ? this.add.triangle(0, -44, -12, 10, 0, -12, 12, 10, 0x223d63)
       : this.add.arc(0, -39, 13, 210, 330, false, 0xf0c94a);
-    const label = this.add.text(0, 50, `${data.label} ${UNIT_STATS[data.kind].maxHealth}/${UNIT_STATS[data.kind].maxHealth}`, labelStyle(13)).setOrigin(0.5);
+    const ownerLabel = data.ownerId && data.ownerId !== this.playerId ? ` ${data.ownerId.replace("player-", "P")}` : "";
+    const label = this.add.text(
+      0,
+      50,
+      `${data.label}${ownerLabel} ${UNIT_STATS[data.kind].maxHealth}/${UNIT_STATS[data.kind].maxHealth}`,
+      labelStyle(13),
+    ).setOrigin(0.5);
     const cargoLabel = this.add.text(0, 68, "", labelStyle(12)).setOrigin(0.5);
 
     unit.add([shadow, body, head, accent, marker, label, cargoLabel]);
@@ -496,6 +517,10 @@ class DemoScene extends Phaser.Scene {
 
     if (this.isPointInCeremonialCenter(x, y)) {
       this.sendSelectedUnitToManualDeposit(unitData);
+      return;
+    }
+
+    if (this.onlineMode && this.sendOnlineMoveCommand(unitData, x, y)) {
       return;
     }
 
@@ -645,6 +670,12 @@ class DemoScene extends Phaser.Scene {
       color: "#c8d6b0",
     }).setScrollFactor(0);
 
+    this.onlineText = this.add.text(520, 30, "online: conectando...", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "13px",
+      color: "#c8d6b0",
+    }).setScrollFactor(0);
+
     this.statusText = this.add.text(36, 122, "Selecciona una unidad.", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",
@@ -655,6 +686,135 @@ class DemoScene extends Phaser.Scene {
   private setStatus(message: string) {
     this.statusText?.setText(message);
     document.body.dataset.status = message;
+  }
+
+  private connectToServer() {
+    const socket = new WebSocket("ws://127.0.0.1:8787");
+    this.socket = socket;
+
+    socket.addEventListener("open", () => {
+      this.onlineText?.setText("online: conectado");
+    });
+
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(event.data as string) as ServerMessage;
+      if (message.type === "welcome") {
+        this.playerId = message.playerId;
+        this.onlineMode = true;
+        this.onlineText?.setText(`online: ${this.playerId}`);
+        this.applyOnlineState(message.state);
+        return;
+      }
+
+      if (message.type === "state") {
+        this.applyOnlineState(message.state);
+      }
+    });
+
+    socket.addEventListener("close", () => {
+      this.onlineMode = false;
+      this.onlineText?.setText("online: desconectado");
+    });
+
+    socket.addEventListener("error", () => {
+      this.onlineMode = false;
+      this.onlineText?.setText("online: servidor no disponible");
+    });
+  }
+
+  private applyOnlineState(state: OnlineGameState) {
+    this.onlineState = state;
+
+    if (!this.initializedOnlineUnits) {
+      this.clearLocalUnits();
+      this.initializedOnlineUnits = true;
+    }
+
+    state.units.forEach((unitState) => {
+      let unit = this.findUnitById(unitState.id);
+      if (!unit) {
+        unit = this.createUnit(unitState.x, unitState.y, this.onlineUnitData(unitState));
+      }
+
+      unit.setPosition(unitState.x, unitState.y);
+      unit.setData("health", unitState.health);
+      unit.setData("target", undefined);
+      this.updateUnitHealthLabel(unit);
+    });
+
+    const activeIds = new Set(state.units.map((unit) => unit.id));
+    this.units
+      .filter((unit) => {
+        const unitData = unit.getData("unit") as UnitData;
+        return unitData.ownerId && !activeIds.has(unitData.id);
+      })
+      .forEach((unit) => {
+        this.units = this.units.filter((candidate) => candidate !== unit);
+        unit.destroy();
+      });
+
+    if (!this.selectedUnit && this.playerId) {
+      const ownUnit = this.units.find((unit) => {
+        const unitData = unit.getData("unit") as UnitData;
+        return unitData.ownerId === this.playerId;
+      });
+      if (ownUnit) this.selectUnit(ownUnit);
+    }
+
+    if (this.selectedUnit && this.selectionRing) {
+      this.selectionRing.setPosition(this.selectedUnit.x, this.selectedUnit.y + 8);
+    }
+
+    this.onlineText?.setText(`online: ${this.playerId ?? "conectado"} | jugadores ${state.players.length}`);
+    this.syncDomState();
+  }
+
+  private clearLocalUnits() {
+    this.units.forEach((unit) => unit.destroy());
+    this.units = [];
+    this.selectedUnit = undefined;
+    this.selectionRing?.destroy();
+    this.selectionRing = undefined;
+  }
+
+  private onlineUnitData(unitState: OnlineUnitState): UnitData {
+    const mine = unitState.ownerId === this.playerId;
+    const color = unitState.kind === "aldeano"
+      ? mine ? 0xe5c16f : 0x8fd1b5
+      : mine ? 0xb84a3b : 0x4b79c4;
+
+    return {
+      id: unitState.id,
+      kind: unitState.kind,
+      label: unitState.kind === "aldeano" ? "Aldeano" : "Guerrero",
+      color,
+      speed: unitState.speed,
+      ownerId: unitState.ownerId,
+    };
+  }
+
+  private findUnitById(id: string) {
+    return this.units.find((unit) => {
+      const unitData = unit.getData("unit") as UnitData | undefined;
+      return unitData?.id === id;
+    });
+  }
+
+  private sendOnlineMoveCommand(unitData: UnitData, x: number, y: number) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+
+    if (unitData.ownerId !== this.playerId) {
+      this.setStatus("Esa unidad pertenece a otro jugador.");
+      return true;
+    }
+
+    this.socket.send(JSON.stringify({
+      type: "move-unit",
+      unitId: unitData.id,
+      target: { x, y },
+    }));
+    this.setStatus(`${unitData.label} recibe orden online a ${Math.round(x)}, ${Math.round(y)}.`);
+    return true;
   }
 
   private startHousePlacement() {
