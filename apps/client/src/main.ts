@@ -32,6 +32,8 @@ type UnitWorkState = "idle" | "moving" | "gathering" | "returning";
 
 type BuildingKind = "casa";
 
+type DepositAfter = "idle" | "resume-gathering";
+
 type BuildingData = {
   id: string;
   kind: BuildingKind;
@@ -345,6 +347,11 @@ class DemoScene extends Phaser.Scene {
       return;
     }
 
+    if (this.isPointInCeremonialCenter(x, y)) {
+      this.sendSelectedUnitToManualDeposit(unitData);
+      return;
+    }
+
     this.selectedUnit.setData("gatherTarget", undefined);
     this.selectedUnit.setData("gatherElapsed", 0);
     this.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
@@ -416,6 +423,11 @@ class DemoScene extends Phaser.Scene {
         return true;
       }
 
+      if (!target && workState === "returning") {
+        this.updateManualDeposit(child, unitData);
+        return true;
+      }
+
       if (!target) return true;
 
       const distance = Phaser.Math.Distance.Between(child.x, child.y, target.x, target.y);
@@ -432,7 +444,11 @@ class DemoScene extends Phaser.Scene {
               : `${unitData.label} recolectando ${gatherTarget.label.toLowerCase()}.`,
           );
         } else {
-          child.setData("workState", "idle" satisfies UnitWorkState);
+          if (workState === "returning") {
+            this.setStatus(`${unitData.label} depositando carga en el centro ceremonial.`);
+          } else {
+            child.setData("workState", "idle" satisfies UnitWorkState);
+          }
         }
         return true;
       }
@@ -642,11 +658,8 @@ class DemoScene extends Phaser.Scene {
 
   private sendUnitToDeposit(unit: Phaser.GameObjects.Container, node: ResourceNode) {
     const unitData = unit.getData("unit") as UnitData;
-    const target = this.getDepositApproachPoint(unit);
-    unit.setData("target", target);
-    unit.setData("workState", "returning" satisfies UnitWorkState);
     unit.setData("gatherTarget", node);
-    unit.setData("gatherElapsed", 0);
+    this.sendUnitToDepositPoint(unit, "resume-gathering");
     this.setStatus(`${unitData.label} vuelve al centro ceremonial para depositar su carga.`);
   }
 
@@ -660,8 +673,7 @@ class DemoScene extends Phaser.Scene {
 
     const cargo = this.getUnitCargo(unit);
     if (!cargo.resource || cargo.amount <= 0) {
-      unit.setData("workState", "gathering" satisfies UnitWorkState);
-      unit.setData("target", this.getGatherApproachPoint(unit, node));
+      this.finishDepositOrder(unit, node);
       return;
     }
 
@@ -672,7 +684,14 @@ class DemoScene extends Phaser.Scene {
     unit.setData("gatherElapsed", 0);
     this.updateUnitCargoLabel(unit);
 
-    if (node.amount > 0) {
+    this.finishDepositOrder(unit, node);
+    this.updateHudResources();
+  }
+
+  private finishDepositOrder(unit: Phaser.GameObjects.Container, node: ResourceNode) {
+    const depositAfter = unit.getData("depositAfter") as DepositAfter | undefined;
+
+    if (depositAfter === "resume-gathering" && node.amount > 0) {
       unit.setData("workState", "moving" satisfies UnitWorkState);
       unit.setData("target", this.getGatherApproachPoint(unit, node));
     } else {
@@ -680,7 +699,7 @@ class DemoScene extends Phaser.Scene {
       unit.setData("workState", "idle" satisfies UnitWorkState);
     }
 
-    this.updateHudResources();
+    unit.setData("depositAfter", undefined);
   }
 
   private getDepositApproachPoint(unit: Phaser.GameObjects.Container) {
@@ -690,6 +709,62 @@ class DemoScene extends Phaser.Scene {
       CEREMONIAL_CENTER.x + Math.cos(angle) * distance,
       CEREMONIAL_CENTER.y + Math.sin(angle) * distance,
     );
+  }
+
+  private sendSelectedUnitToManualDeposit(unitData: UnitData) {
+    if (!this.selectedUnit) return;
+
+    if (unitData.kind !== "aldeano") {
+      this.setStatus(`${unitData.label} no puede depositar recursos.`);
+      return;
+    }
+
+    const cargo = this.getUnitCargo(this.selectedUnit);
+    if (!cargo.resource || cargo.amount <= 0) {
+      this.setStatus(`${unitData.label} no trae recursos para depositar.`);
+      return;
+    }
+
+    this.selectedUnit.setData("gatherTarget", undefined);
+    this.sendUnitToDepositPoint(this.selectedUnit, "idle");
+    this.setStatus(`${unitData.label} va al centro ceremonial para depositar ${cargo.amount} ${cargo.resource}.`);
+  }
+
+  private sendUnitToDepositPoint(unit: Phaser.GameObjects.Container, depositAfter: DepositAfter) {
+    unit.setData("target", this.getDepositApproachPoint(unit));
+    unit.setData("workState", "returning" satisfies UnitWorkState);
+    unit.setData("depositAfter", depositAfter);
+    unit.setData("gatherElapsed", 0);
+  }
+
+  private updateManualDeposit(unit: Phaser.GameObjects.Container, unitData: UnitData) {
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
+    if (distance > CEREMONIAL_CENTER.depositRadius) {
+      unit.setData("target", this.getDepositApproachPoint(unit));
+      unit.setData("workState", "returning" satisfies UnitWorkState);
+      return;
+    }
+
+    const cargo = this.getUnitCargo(unit);
+    if (!cargo.resource || cargo.amount <= 0) {
+      unit.setData("workState", "idle" satisfies UnitWorkState);
+      unit.setData("depositAfter", undefined);
+      this.setStatus(`${unitData.label} no trae recursos para depositar.`);
+      return;
+    }
+
+    this.resources[cargo.resource] += cargo.amount;
+    this.pulseResourceGain(unit.x, unit.y - 46, `+${cargo.amount} ${cargo.resource}`);
+    this.setStatus(`${unitData.label} deposito ${cargo.amount} ${cargo.resource}.`);
+    unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
+    unit.setData("workState", "idle" satisfies UnitWorkState);
+    unit.setData("depositAfter", undefined);
+    this.updateUnitCargoLabel(unit);
+    this.updateHudResources();
+  }
+
+  private isPointInCeremonialCenter(x: number, y: number) {
+    return Phaser.Math.Distance.Between(x, y, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y) <= CEREMONIAL_CENTER.depositRadius;
   }
 
   private getUnitCargo(unit: Phaser.GameObjects.Container): UnitCargo {
