@@ -3,6 +3,7 @@ import {
   GAME_TITLE,
   RESOURCES,
   type ClientMessage,
+  type OnlineBuildingKind,
   type OnlineGameState,
   type OnlineResourceNodeState,
   type OnlineUnitKind,
@@ -21,6 +22,7 @@ const state: OnlineGameState = {
   players: [],
   units: [],
   resourceNodes: createResourceNodes(),
+  buildings: [],
 };
 
 const CARRY_CAPACITY: Record<Resource, number> = {
@@ -36,6 +38,20 @@ const CEREMONIAL_CENTER = {
   y: 470,
   depositRadius: 180,
 };
+const HOUSE_WOOD_COST = 50;
+const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
+  madera: 120,
+  piedra: 40,
+};
+const BUILDING_RADIUS: Record<OnlineBuildingKind, number> = {
+  casa: 112,
+  telpochcalli: 146,
+};
+const RESOURCE_CLEARANCE: Record<OnlineBuildingKind, number> = {
+  casa: 54,
+  telpochcalli: 82,
+};
+let nextBuildingNumber = 1;
 
 server.on("connection", (socket) => {
   const playerId = assignPlayer(socket);
@@ -92,6 +108,7 @@ function removePlayer(playerId: string) {
     player.slot = index + 1;
   });
   state.units = state.units.filter((unit) => unit.ownerId !== playerId);
+  state.buildings = state.buildings.filter((building) => building.ownerId !== playerId);
 }
 
 function ensureStartingUnits(playerId: string) {
@@ -170,6 +187,10 @@ function handleClientMessage(playerId: string, raw: string) {
     unit.gatherTargetId = undefined;
     unit.target = getDepositApproachPoint(unit);
     unit.workState = "returning";
+  }
+
+  if (message.type === "build-structure") {
+    buildStructure(playerId, message);
   }
 }
 
@@ -339,6 +360,69 @@ function createResourceNode(
     amount: 500,
     depleted: false,
   };
+}
+
+function buildStructure(
+  playerId: string,
+  message: Extract<ClientMessage, { type: "build-structure" }>,
+) {
+  const unit = state.units.find((candidate) => candidate.id === message.unitId);
+  if (!unit || unit.ownerId !== playerId || unit.kind !== "aldeano") return;
+  if (!isBuildingKind(message.kind)) return;
+
+  const x = clamp(message.x, 0, 2400);
+  const y = clamp(message.y, 0, 1600);
+  if (!canPlaceBuildingAt(x, y, message.kind)) return;
+
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  const cost = getBuildingCost(message.kind);
+  if (!player || !canAfford(player.resources, cost)) return;
+
+  spendResources(player.resources, cost);
+  unit.target = undefined;
+  unit.gatherTargetId = undefined;
+  unit.workState = "idle";
+
+  state.buildings.push({
+    id: `${message.kind}-${nextBuildingNumber++}`,
+    ownerId: playerId,
+    kind: message.kind,
+    x,
+    y,
+  });
+}
+
+function canPlaceBuildingAt(x: number, y: number, kind: OnlineBuildingKind) {
+  if (x < 80 || y < 80 || x > 2400 - 80 || y > 1600 - 80) return false;
+
+  const nearResource = state.resourceNodes.some((node) => {
+    if (node.depleted) return false;
+    return Math.hypot(x - node.x, y - node.y) < node.radius + RESOURCE_CLEARANCE[kind];
+  });
+  if (nearResource) return false;
+
+  return !state.buildings.some((building) => {
+    return Math.hypot(x - building.x, y - building.y) < BUILDING_RADIUS[kind];
+  });
+}
+
+function getBuildingCost(kind: OnlineBuildingKind): Partial<Record<Resource, number>> {
+  if (kind === "casa") return { madera: HOUSE_WOOD_COST };
+  return TELPOCHCALLI_COST;
+}
+
+function isBuildingKind(kind: string): kind is OnlineBuildingKind {
+  return kind === "casa" || kind === "telpochcalli";
+}
+
+function canAfford(resources: Record<Resource, number>, cost: Partial<Record<Resource, number>>) {
+  return RESOURCES.every((resource) => resources[resource] >= (cost[resource] ?? 0));
+}
+
+function spendResources(resources: Record<Resource, number>, cost: Partial<Record<Resource, number>>) {
+  RESOURCES.forEach((resource) => {
+    resources[resource] -= cost[resource] ?? 0;
+  });
 }
 
 function broadcastState() {

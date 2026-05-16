@@ -6,6 +6,8 @@ export type Resource = (typeof RESOURCES)[number];
 
 export type OnlineUnitKind = "aldeano" | "guerrero";
 
+export type OnlineBuildingKind = "casa" | "telpochcalli";
+
 export type OnlineUnitState = {
   id: string;
   ownerId: string;
@@ -44,11 +46,20 @@ export type OnlineResourceNodeState = {
   depleted: boolean;
 };
 
+export type OnlineBuildingState = {
+  id: string;
+  ownerId: string;
+  kind: OnlineBuildingKind;
+  x: number;
+  y: number;
+};
+
 export type OnlineGameState = {
   tick: number;
   players: OnlinePlayerState[];
   units: OnlineUnitState[];
   resourceNodes: OnlineResourceNodeState[];
+  buildings: OnlineBuildingState[];
 };
 
 export type ServerMessage =
@@ -80,4 +91,11 @@ export type ClientMessage =
   | {
       type: "deposit-resources";
       unitId: string;
+    }
+  | {
+      type: "build-structure";
+      unitId: string;
+      kind: OnlineBuildingKind;
+      x: number;
+      y: number;
     };

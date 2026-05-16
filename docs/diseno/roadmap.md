@@ -2,7 +2,7 @@
 
 ## Fase 0: Base del Proyecto
 
-Estado: iniciada.
+Estado: completada.
 
 Objetivo:
 
@@ -42,7 +42,7 @@ Convertir el prototipo en una partida pequena.
 Incluye:
 
 - Aldeanos.
-- Recoleccion de maiz y madera.
+- Recoleccion de maiz, madera, piedra y obsidiana.
 - Centro ceremonial.
 - Casas.
 - Produccion de unidades.
@@ -81,6 +81,9 @@ Incluye:
 - Union a sala.
 - Sincronizacion de comandos.
 - Servidor autoritativo.
+- Movimiento, recoleccion y construccion basica autoritativos.
+- Edificios compartidos entre navegadores.
+- Limite de poblacion propio sin publicar el limite del rival.
 - Reconexion basica si es viable.
 
 ## Fase 5: Primera Civilizacion Jugable
@@ -138,4 +141,3 @@ Arte final y campana jugable empiezan despues de tener:
 - Recoleccion basica.
 - Construccion basica.
 - Combate simple.
-

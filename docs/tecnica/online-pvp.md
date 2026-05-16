@@ -11,6 +11,8 @@ El servidor WebSocket mantiene el estado autoritativo inicial de la partida para
 - recursos globales por jugador
 - nodos de recursos del mapa
 - recoleccion, carga y deposito de aldeanos
+- construccion de casa y telpochcalli
+- edificios visibles para todos los clientes conectados
 
 El cliente se conecta a:
 
@@ -27,6 +29,7 @@ Al conectarse, el servidor asigna un `playerId`, crea unidades iniciales para es
 - `move-unit`: mueve una unidad propia hacia una posicion del mapa.
 - `gather-resource`: ordena a un aldeano propio recolectar un nodo de recurso.
 - `deposit-resources`: ordena a un aldeano propio depositar su carga en el centro ceremonial.
+- `build-structure`: solicita a un aldeano propio construir una casa o telpochcalli.
 
 ### Servidor a cliente
 
@@ -35,19 +38,24 @@ Al conectarse, el servidor asigna un `playerId`, crea unidades iniciales para es
 
 ## Alcance Actual
 
-Este corte sincroniza movimiento y recoleccion de unidades entre navegadores. El servidor decide:
+Este corte sincroniza movimiento, recoleccion y construccion entre navegadores. El servidor decide:
 
 - cuanto recurso carga cada aldeano
 - cuando vuelve al centro ceremonial
 - cuando deposita recursos al inventario del jugador
 - cuando un nodo queda agotado
+- si un aldeano puede construir
+- si el jugador tiene recursos suficientes
+- si el edificio puede colocarse en esa posicion
+- que edificios existen en el mapa
 
 Todavia falta migrar al servidor:
 
-- construccion
 - produccion
 - combate
 - Camazotz
+
+El snapshot compartido no incluye el limite de poblacion de jugadores rivales. El cliente calcula y muestra solo el limite propio a partir de sus casas.
 
 ## Como Probar
 
@@ -72,3 +80,5 @@ http://127.0.0.1:5173/
 Mover una unidad propia con clic derecho. El otro cliente debe ver la misma unidad moverse.
 
 Para probar recoleccion online, seleccionar un aldeano propio y hacer clic derecho sobre un recurso. Ambos clientes deben ver al aldeano recolectar, volver al centro ceremonial, depositar y actualizar el inventario compartido del jugador.
+
+Para probar construccion online, seleccionar un aldeano propio, presionar `H` para casa o `T` para telpochcalli y colocar el edificio con clic izquierdo. Ambos clientes deben ver aparecer el mismo edificio y solo el jugador constructor debe ver su propio limite de poblacion actualizado.

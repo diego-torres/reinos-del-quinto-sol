@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import {
   GAME_TITLE,
   RESOURCES,
+  type OnlineBuildingState,
   type OnlineGameState,
   type OnlineUnitState,
   type Resource,
@@ -57,7 +58,9 @@ type BuildingData = {
   label: string;
   x: number;
   y: number;
+  ownerId?: string;
   populationBonus: number;
+  container?: Phaser.GameObjects.Container;
 };
 
 type TrainingDefinition = {
@@ -373,6 +376,7 @@ class DemoScene extends Phaser.Scene {
     house.add(this.add.rectangle(0, 36, 24, 28, 0x3c281d).setStrokeStyle(2, 0x20140f));
     house.add(this.add.rectangle(-24, 18, 16, 14, 0xf0c94a, 0.45).setStrokeStyle(2, 0x5a3a24));
     house.add(this.add.text(0, 82, "Casa", labelStyle(13)).setOrigin(0.5));
+    return house;
   }
 
   private drawTelpochcalli(x: number, y: number) {
@@ -387,6 +391,7 @@ class DemoScene extends Phaser.Scene {
     building.add(this.add.rectangle(-36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
     building.add(this.add.rectangle(36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
     building.add(this.add.text(0, 104, "Telpochcalli", labelStyle(13)).setOrigin(0.5));
+    return building;
   }
 
   private createCamazotz(x: number, y: number): MythicBeast {
@@ -778,6 +783,7 @@ class DemoScene extends Phaser.Scene {
     }
 
     this.applyOnlineResources(state);
+    this.applyOnlineBuildings(state);
     this.onlineText?.setText(`online: ${this.playerId ?? "conectado"} | jugadores ${state.players.length}`);
     this.syncDomState();
   }
@@ -803,6 +809,32 @@ class DemoScene extends Phaser.Scene {
     });
   }
 
+  private applyOnlineBuildings(state: OnlineGameState) {
+    state.buildings.forEach((buildingState) => {
+      let building = this.buildings.find((candidate) => candidate.id === buildingState.id);
+      if (!building) {
+        building = this.onlineBuildingData(buildingState);
+        building.container = building.kind === "casa"
+          ? this.drawHouse(building.x, building.y)
+          : this.drawTelpochcalli(building.x, building.y);
+        this.buildings.push(building);
+      }
+    });
+
+    const activeIds = new Set(state.buildings.map((building) => building.id));
+    this.buildings
+      .filter((building) => building.ownerId && !activeIds.has(building.id))
+      .forEach((building) => {
+        building.container?.destroy();
+        this.buildings = this.buildings.filter((candidate) => candidate !== building);
+      });
+
+    this.populationLimit = 5 + this.buildings
+      .filter((building) => building.ownerId === this.playerId && building.kind === "casa")
+      .reduce((total, building) => total + building.populationBonus, 0);
+    this.updateHudResources();
+  }
+
   private clearLocalUnits() {
     this.units.forEach((unit) => unit.destroy());
     this.units = [];
@@ -824,6 +856,18 @@ class DemoScene extends Phaser.Scene {
       color,
       speed: unitState.speed,
       ownerId: unitState.ownerId,
+    };
+  }
+
+  private onlineBuildingData(buildingState: OnlineBuildingState): BuildingData {
+    return {
+      id: buildingState.id,
+      ownerId: buildingState.ownerId,
+      kind: buildingState.kind,
+      label: buildingState.kind === "casa" ? "Casa" : "Telpochcalli",
+      x: buildingState.x,
+      y: buildingState.y,
+      populationBonus: buildingState.kind === "casa" ? HOUSE_POPULATION_BONUS : 0,
     };
   }
 
@@ -959,6 +1003,12 @@ class DemoScene extends Phaser.Scene {
       return;
     }
 
+    if (this.onlineMode && this.sendOnlineBuildCommand(unitData, this.buildMode, x, y)) {
+      const label = this.buildMode === "casa" ? "Casa" : "Telpochcalli";
+      this.cancelBuildMode(`${label} solicitada al servidor.`);
+      return;
+    }
+
     const building: BuildingData = {
       id: `${this.buildMode}-${this.buildings.length + 1}`,
       kind: this.buildMode,
@@ -970,17 +1020,34 @@ class DemoScene extends Phaser.Scene {
 
     this.spendResources(cost);
     this.populationLimit += building.populationBonus;
+    building.container = building.kind === "casa"
+      ? this.drawHouse(x, y)
+      : this.drawTelpochcalli(x, y);
     this.buildings.push(building);
-    if (building.kind === "casa") {
-      this.drawHouse(x, y);
-    } else {
-      this.drawTelpochcalli(x, y);
-    }
     this.updateHudResources();
     const extra = building.kind === "casa"
       ? ` Limite de poblacion: ${this.population}/${this.populationLimit}.`
       : " Presiona G para entrenar guerreros.";
     this.cancelBuildMode(`${building.label} construido.${extra}`);
+  }
+
+  private sendOnlineBuildCommand(unitData: UnitData, kind: BuildingKind, x: number, y: number) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+
+    if (unitData.ownerId !== this.playerId) {
+      this.setStatus("Esa unidad pertenece a otro jugador.");
+      return true;
+    }
+
+    this.socket.send(JSON.stringify({
+      type: "build-structure",
+      unitId: unitData.id,
+      kind,
+      x,
+      y,
+    }));
+    this.setStatus(`${kind === "casa" ? "Casa" : "Telpochcalli"} enviada al servidor.`);
+    return true;
   }
 
   private trainVillager() {
@@ -1545,7 +1612,7 @@ class DemoScene extends Phaser.Scene {
       current: this.population,
       limit: this.populationLimit,
     });
-    document.body.dataset.buildings = JSON.stringify(this.buildings);
+    document.body.dataset.buildings = JSON.stringify(this.getDebugBuildings());
     document.body.dataset.carryCapacity = JSON.stringify(CARRY_CAPACITY);
     document.body.dataset.units = JSON.stringify(this.getDebugUnits());
     document.body.dataset.training = JSON.stringify({
@@ -1655,7 +1722,7 @@ class DemoScene extends Phaser.Scene {
             current: this.population,
             limit: this.populationLimit,
           },
-          buildings: [...this.buildings],
+          buildings: this.getDebugBuildings(),
         };
       },
       exhaustFirst: (resource: Resource) => {
@@ -1700,6 +1767,17 @@ class DemoScene extends Phaser.Scene {
     });
 
     return units;
+  }
+
+  private getDebugBuildings() {
+    return this.buildings.map((building) => ({
+      id: building.id,
+      kind: building.kind,
+      ownerId: building.ownerId,
+      x: Math.round(building.x),
+      y: Math.round(building.y),
+      populationBonus: building.populationBonus,
+    }));
   }
 
   private updateCamera(delta: number) {
