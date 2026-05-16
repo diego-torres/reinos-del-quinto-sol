@@ -9,7 +9,7 @@
 Para el MVP:
 
 - 2D top-down con ligera perspectiva.
-- Sprites dibujados o pixel art de alta legibilidad.
+- Sprites ilustrados planos de alta legibilidad.
 - Animaciones simples al inicio.
 - Escenarios modulares por tiles.
 
@@ -29,7 +29,7 @@ Evitar por ahora:
 
 ## Paleta Inicial
 
-La paleta debe mezclar:
+La paleta base esta detallada en `docs/diseno/biblia-visual.md`. En resumen debe mezclar:
 
 - Verdes de selva y milpa.
 - Piedra caliza clara.
@@ -37,6 +37,7 @@ La paleta debe mezclar:
 - Jade verdoso.
 - Rojo cochinilla o cinabrio para detalles ceremoniales.
 - Azul maya como color especial, usado con moderacion.
+- Turquesa lacustre, ocre maiz y terracota como base del vertical slice inspirado en Tenochtitlan.
 
 ## Primeros Assets a Dibujar
 
@@ -103,4 +104,3 @@ Primer paquete de arte:
 4. Iconos simples para maiz, madera, piedra y obsidiana.
 
 El arte debe integrarse rapido al juego, aunque sea provisional.
-
