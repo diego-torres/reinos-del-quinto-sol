@@ -23,6 +23,13 @@ type ResourceNode = {
   text: Phaser.GameObjects.Text;
 };
 
+type UnitCargo = {
+  resource?: Resource;
+  amount: number;
+};
+
+type UnitWorkState = "idle" | "moving" | "gathering" | "returning";
+
 type BuildingKind = "casa";
 
 type BuildingData = {
@@ -39,6 +46,17 @@ const WORLD_HEIGHT = 1600;
 const TILE_SIZE = 96;
 const GATHER_INTERVAL_MS = 1000;
 const GATHER_AMOUNT = 10;
+const CEREMONIAL_CENTER = {
+  x: 520,
+  y: 470,
+  depositRadius: 180,
+};
+const CARRY_CAPACITY: Record<Resource, number> = {
+  maiz: 30,
+  madera: 25,
+  piedra: 20,
+  obsidiana: 15,
+};
 const HOUSE_WOOD_COST = 50;
 const HOUSE_POPULATION_BONUS = 5;
 
@@ -49,6 +67,7 @@ class DemoScene extends Phaser.Scene {
   private wasd?: Record<string, Phaser.Input.Keyboard.Key>;
   private statusText?: Phaser.GameObjects.Text;
   private resourceText?: Phaser.GameObjects.Text;
+  private carryCapacityText?: Phaser.GameObjects.Text;
   private buildMode?: BuildingKind;
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
   private resourceNodes: ResourceNode[] = [];
@@ -73,7 +92,7 @@ class DemoScene extends Phaser.Scene {
 
     this.drawTerrain();
     this.drawResourceClusters();
-    this.drawCeremonialCenter(520, 470);
+    this.drawCeremonialCenter(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
 
     const aldeano = this.createUnit(780, 620, {
       id: "aldeano-1",
@@ -94,6 +113,7 @@ class DemoScene extends Phaser.Scene {
     this.createHud();
     this.selectUnit(aldeano);
     this.installDebugApi();
+    this.syncDomState();
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.leftButtonDown() && this.buildMode) {
@@ -263,6 +283,8 @@ class DemoScene extends Phaser.Scene {
     unit.setData("target", undefined);
     unit.setData("gatherTarget", undefined);
     unit.setData("gatherElapsed", 0);
+    unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
+    unit.setData("workState", "idle" satisfies UnitWorkState);
     unit.setSize(52, 60);
     unit.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
 
@@ -276,8 +298,11 @@ class DemoScene extends Phaser.Scene {
       ? this.add.triangle(0, -44, -12, 10, 0, -12, 12, 10, 0x223d63)
       : this.add.arc(0, -39, 13, 210, 330, false, 0xf0c94a);
     const label = this.add.text(0, 50, data.label, labelStyle(13)).setOrigin(0.5);
+    const cargoLabel = this.add.text(0, 68, "", labelStyle(12)).setOrigin(0.5);
 
-    unit.add([shadow, body, head, accent, marker, label]);
+    unit.add([shadow, body, head, accent, marker, label, cargoLabel]);
+    unit.setData("cargoLabel", cargoLabel);
+    this.updateUnitCargoLabel(unit);
 
     unit.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.leftButtonDown()) {
@@ -322,6 +347,7 @@ class DemoScene extends Phaser.Scene {
 
     this.selectedUnit.setData("gatherTarget", undefined);
     this.selectedUnit.setData("gatherElapsed", 0);
+    this.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
     this.moveSelectedUnit(x, y);
   }
 
@@ -330,6 +356,7 @@ class DemoScene extends Phaser.Scene {
 
     const unitData = this.selectedUnit.getData("unit") as UnitData;
     this.selectedUnit.setData("target", new Phaser.Math.Vector2(x, y));
+    this.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
     this.setStatus(`${unitData.label} avanzando a ${Math.round(x)}, ${Math.round(y)}.`);
 
     this.targetMarkers.get(unitData.id)?.destroy();
@@ -352,6 +379,7 @@ class DemoScene extends Phaser.Scene {
     unit.setData("gatherTarget", resourceNode);
     unit.setData("gatherElapsed", 0);
     unit.setData("target", approach);
+    unit.setData("workState", "moving" satisfies UnitWorkState);
     this.setStatus(`${unitData.label} va hacia ${resourceNode.label.toLowerCase()} para recolectar.`);
 
     this.targetMarkers.get(unitData.id)?.destroy();
@@ -376,10 +404,15 @@ class DemoScene extends Phaser.Scene {
       const unitData = child.getData("unit") as UnitData | undefined;
       const target = child.getData("target") as Phaser.Math.Vector2 | undefined;
       const gatherTarget = child.getData("gatherTarget") as ResourceNode | undefined;
+      const workState = child.getData("workState") as UnitWorkState | undefined;
       if (!unitData) return true;
 
       if (!target && gatherTarget) {
-        this.updateGathering(child, unitData, gatherTarget, delta);
+        if (workState === "returning") {
+          this.updateDeposit(child, unitData, gatherTarget);
+        } else {
+          this.updateGathering(child, unitData, gatherTarget, delta);
+        }
         return true;
       }
 
@@ -391,7 +424,15 @@ class DemoScene extends Phaser.Scene {
         this.targetMarkers.get(unitData.id)?.destroy();
         this.targetMarkers.delete(unitData.id);
         if (gatherTarget) {
-          this.setStatus(`${unitData.label} recolectando ${gatherTarget.label.toLowerCase()}.`);
+          const nextState = workState === "returning" ? "returning" : "gathering";
+          child.setData("workState", nextState satisfies UnitWorkState);
+          this.setStatus(
+            nextState === "returning"
+              ? `${unitData.label} depositando carga en el centro ceremonial.`
+              : `${unitData.label} recolectando ${gatherTarget.label.toLowerCase()}.`,
+          );
+        } else {
+          child.setData("workState", "idle" satisfies UnitWorkState);
         }
         return true;
       }
@@ -407,10 +448,11 @@ class DemoScene extends Phaser.Scene {
 
       return true;
     });
+    this.syncDomState();
   }
 
   private createHud() {
-    const panel = this.add.rectangle(18, 18, 780, 122, 0x17261d, 0.86).setOrigin(0);
+    const panel = this.add.rectangle(18, 18, 780, 152, 0x17261d, 0.86).setOrigin(0);
     panel.setScrollFactor(0);
     panel.setStrokeStyle(2, 0xd7bc73, 0.55);
 
@@ -426,7 +468,13 @@ class DemoScene extends Phaser.Scene {
       color: "#d9e4c5",
     }).setScrollFactor(0);
 
-    this.statusText = this.add.text(36, 96, "Selecciona una unidad.", {
+    this.carryCapacityText = this.add.text(36, 94, this.formatCarryCapacities(), {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "13px",
+      color: "#c8d6b0",
+    }).setScrollFactor(0);
+
+    this.statusText = this.add.text(36, 122, "Selecciona una unidad.", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",
       color: "#ffffff",
@@ -456,6 +504,7 @@ class DemoScene extends Phaser.Scene {
     this.selectedUnit.setData("gatherTarget", undefined);
     this.selectedUnit.setData("gatherElapsed", 0);
     this.selectedUnit.setData("target", undefined);
+    this.selectedUnit.setData("workState", "idle" satisfies UnitWorkState);
     this.setStatus(`Modo construccion: casa cuesta ${HOUSE_WOOD_COST} madera. Clic izquierdo para colocar.`);
   }
 
@@ -550,6 +599,7 @@ class DemoScene extends Phaser.Scene {
     const distance = Phaser.Math.Distance.Between(unit.x, unit.y, node.x, node.y);
     if (distance > node.radius + 42) {
       unit.setData("target", this.getGatherApproachPoint(unit, node));
+      unit.setData("workState", "moving" satisfies UnitWorkState);
       return;
     }
 
@@ -559,13 +609,104 @@ class DemoScene extends Phaser.Scene {
       return;
     }
 
-    const gathered = Math.min(GATHER_AMOUNT, node.amount);
+    const cargo = this.getUnitCargo(unit);
+    if (cargo.resource && cargo.resource !== node.resource && cargo.amount > 0) {
+      this.sendUnitToDeposit(unit, node);
+      return;
+    }
+
+    const capacity = CARRY_CAPACITY[node.resource];
+    const remainingCapacity = capacity - cargo.amount;
+    if (remainingCapacity <= 0) {
+      this.sendUnitToDeposit(unit, node);
+      return;
+    }
+
+    const gathered = Math.min(GATHER_AMOUNT, node.amount, remainingCapacity);
     node.amount -= gathered;
-    this.resources[node.resource] += gathered;
+    unit.setData("cargo", {
+      resource: node.resource,
+      amount: cargo.amount + gathered,
+    } satisfies UnitCargo);
     unit.setData("gatherElapsed", 0);
-    this.updateHudResources();
+    this.updateUnitCargoLabel(unit);
+    this.syncDomState();
     this.updateResourceNodeLabel(node);
-    this.pulseResourceGain(unit.x, unit.y - 42, `+${gathered} ${node.resource}`);
+    this.pulseResourceGain(unit.x, unit.y - 42, `carga +${gathered} ${node.resource}`);
+
+    const updatedCargo = this.getUnitCargo(unit);
+    if (updatedCargo.amount >= capacity || node.amount <= 0) {
+      this.sendUnitToDeposit(unit, node);
+    }
+  }
+
+  private sendUnitToDeposit(unit: Phaser.GameObjects.Container, node: ResourceNode) {
+    const unitData = unit.getData("unit") as UnitData;
+    const target = this.getDepositApproachPoint(unit);
+    unit.setData("target", target);
+    unit.setData("workState", "returning" satisfies UnitWorkState);
+    unit.setData("gatherTarget", node);
+    unit.setData("gatherElapsed", 0);
+    this.setStatus(`${unitData.label} vuelve al centro ceremonial para depositar su carga.`);
+  }
+
+  private updateDeposit(unit: Phaser.GameObjects.Container, unitData: UnitData, node: ResourceNode) {
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
+    if (distance > CEREMONIAL_CENTER.depositRadius) {
+      unit.setData("target", this.getDepositApproachPoint(unit));
+      unit.setData("workState", "returning" satisfies UnitWorkState);
+      return;
+    }
+
+    const cargo = this.getUnitCargo(unit);
+    if (!cargo.resource || cargo.amount <= 0) {
+      unit.setData("workState", "gathering" satisfies UnitWorkState);
+      unit.setData("target", this.getGatherApproachPoint(unit, node));
+      return;
+    }
+
+    this.resources[cargo.resource] += cargo.amount;
+    this.pulseResourceGain(unit.x, unit.y - 46, `+${cargo.amount} ${cargo.resource}`);
+    this.setStatus(`${unitData.label} deposito ${cargo.amount} ${cargo.resource}.`);
+    unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
+    unit.setData("gatherElapsed", 0);
+    this.updateUnitCargoLabel(unit);
+
+    if (node.amount > 0) {
+      unit.setData("workState", "moving" satisfies UnitWorkState);
+      unit.setData("target", this.getGatherApproachPoint(unit, node));
+    } else {
+      unit.setData("gatherTarget", undefined);
+      unit.setData("workState", "idle" satisfies UnitWorkState);
+    }
+
+    this.updateHudResources();
+  }
+
+  private getDepositApproachPoint(unit: Phaser.GameObjects.Container) {
+    const angle = Phaser.Math.Angle.Between(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y, unit.x, unit.y);
+    const distance = CEREMONIAL_CENTER.depositRadius - 28;
+    return new Phaser.Math.Vector2(
+      CEREMONIAL_CENTER.x + Math.cos(angle) * distance,
+      CEREMONIAL_CENTER.y + Math.sin(angle) * distance,
+    );
+  }
+
+  private getUnitCargo(unit: Phaser.GameObjects.Container): UnitCargo {
+    return unit.getData("cargo") as UnitCargo;
+  }
+
+  private updateUnitCargoLabel(unit: Phaser.GameObjects.Container) {
+    const cargoLabel = unit.getData("cargoLabel") as Phaser.GameObjects.Text | undefined;
+    const cargo = this.getUnitCargo(unit);
+    if (!cargoLabel) return;
+
+    if (!cargo.resource || cargo.amount <= 0) {
+      cargoLabel.setText("");
+      return;
+    }
+
+    cargoLabel.setText(`${cargo.resource} ${cargo.amount}/${CARRY_CAPACITY[cargo.resource]}`);
   }
 
   private updateHudResources() {
@@ -576,6 +717,10 @@ class DemoScene extends Phaser.Scene {
   private formatResources() {
     const resourceValues = RESOURCES.map((resource) => `${resource}: ${this.resources[resource]}`).join("   ");
     return `${resourceValues}   poblacion: ${this.population}/${this.populationLimit}`;
+  }
+
+  private formatCarryCapacities() {
+    return `capacidad aldeano: ${RESOURCES.map((resource) => `${resource} ${CARRY_CAPACITY[resource]}`).join("   ")}`;
   }
 
   private updateResourceNodeLabel(node: ResourceNode) {
@@ -595,6 +740,8 @@ class DemoScene extends Phaser.Scene {
       limit: this.populationLimit,
     });
     document.body.dataset.buildings = JSON.stringify(this.buildings);
+    document.body.dataset.carryCapacity = JSON.stringify(CARRY_CAPACITY);
+    document.body.dataset.units = JSON.stringify(this.getDebugUnits());
   }
 
   private pulseResourceGain(x: number, y: number, message: string) {
@@ -630,6 +777,8 @@ class DemoScene extends Phaser.Scene {
         const unitData = this.selectedUnit?.getData("unit") as UnitData | undefined;
         return unitData?.id;
       },
+      getCarryCapacity: () => ({ ...CARRY_CAPACITY }),
+      getUnits: () => this.getDebugUnits(),
       gatherFirst: (resource: Resource) => {
         const node = this.resourceNodes.find((candidate) => candidate.resource === resource);
         if (!this.selectedUnit || !node) return false;
@@ -655,6 +804,36 @@ class DemoScene extends Phaser.Scene {
     };
 
     (globalThis as typeof globalThis & { __RQSDebug?: typeof debugApi }).__RQSDebug = debugApi;
+  }
+
+  private getDebugUnits() {
+    const units: Array<{
+      id: string;
+      kind: UnitKind;
+      x: number;
+      y: number;
+      cargo: UnitCargo;
+      workState: UnitWorkState;
+    }> = [];
+
+    this.children.each((child) => {
+      if (!(child instanceof Phaser.GameObjects.Container)) return true;
+
+      const unitData = child.getData("unit") as UnitData | undefined;
+      if (!unitData) return true;
+
+      units.push({
+        id: unitData.id,
+        kind: unitData.kind,
+        x: Math.round(child.x),
+        y: Math.round(child.y),
+        cargo: this.getUnitCargo(child),
+        workState: child.getData("workState") as UnitWorkState,
+      });
+      return true;
+    });
+
+    return units;
   }
 
   private updateCamera(delta: number) {
