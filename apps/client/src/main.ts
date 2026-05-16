@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { GAME_TITLE, RESOURCES } from "@reinos/shared";
+import { GAME_TITLE, RESOURCES, type Resource } from "@reinos/shared";
 import "./styles.css";
 
 type UnitKind = "aldeano" | "guerrero";
@@ -12,9 +12,22 @@ type UnitData = {
   speed: number;
 };
 
+type ResourceNode = {
+  id: string;
+  resource: Resource;
+  label: string;
+  x: number;
+  y: number;
+  radius: number;
+  amount: number;
+  text: Phaser.GameObjects.Text;
+};
+
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1600;
 const TILE_SIZE = 96;
+const GATHER_INTERVAL_MS = 1000;
+const GATHER_AMOUNT = 10;
 
 class DemoScene extends Phaser.Scene {
   private selectedUnit?: Phaser.GameObjects.Container;
@@ -22,7 +35,15 @@ class DemoScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<string, Phaser.Input.Keyboard.Key>;
   private statusText?: Phaser.GameObjects.Text;
+  private resourceText?: Phaser.GameObjects.Text;
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
+  private resourceNodes: ResourceNode[] = [];
+  private resources: Record<Resource, number> = {
+    maiz: 200,
+    madera: 200,
+    piedra: 200,
+    obsidiana: 200,
+  };
 
   constructor() {
     super("demo");
@@ -53,12 +74,13 @@ class DemoScene extends Phaser.Scene {
       speed: 190,
     });
 
-    this.selectUnit(aldeano);
     this.createHud();
+    this.selectUnit(aldeano);
+    this.installDebugApi();
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
-        this.moveSelectedUnit(pointer.worldX, pointer.worldY);
+        this.handleRightClick(pointer.worldX, pointer.worldY);
       }
     });
 
@@ -107,6 +129,7 @@ class DemoScene extends Phaser.Scene {
   }
 
   private drawResourceClusters() {
+    this.drawMaizeField(620, 520);
     this.drawMaizeField(280, 780);
     this.drawMaizeField(1080, 560);
     this.drawForest(1360, 350);
@@ -126,7 +149,8 @@ class DemoScene extends Phaser.Scene {
       const cob = this.add.ellipse(px + 5, py - 4, 11, 22, 0xf0c94a);
       group.add([stalk, cob]);
     }
-    this.add.text(x - 8, y + 92, "Maizal", labelStyle()).setOrigin(0.5);
+    const label = this.add.text(x - 8, y + 92, "Maizal", labelStyle()).setOrigin(0.5);
+    this.registerResourceNode("maiz", "Maizal", x + 56, y + 34, 94, label);
   }
 
   private drawForest(x: number, y: number) {
@@ -138,7 +162,8 @@ class DemoScene extends Phaser.Scene {
       group.add(this.add.triangle(px, py, -25, 30, 0, -28, 25, 30, 0x1c6b3f));
       group.add(this.add.triangle(px, py - 18, -21, 22, 0, -30, 21, 22, 0x23824a));
     }
-    this.add.text(x + 62, y + 142, "Bosque", labelStyle()).setOrigin(0.5);
+    const label = this.add.text(x + 62, y + 142, "Bosque", labelStyle()).setOrigin(0.5);
+    this.registerResourceNode("madera", "Bosque", x + 66, y + 52, 118, label);
   }
 
   private drawStoneOutcrop(x: number, y: number) {
@@ -149,7 +174,8 @@ class DemoScene extends Phaser.Scene {
     graphics.fillCircle(x + 34, y + 22, 30);
     graphics.fillStyle(0xd5d1b8, 1);
     graphics.fillCircle(x - 26, y + 28, 24);
-    this.add.text(x + 10, y + 70, "Piedra", labelStyle()).setOrigin(0.5);
+    const label = this.add.text(x + 10, y + 70, "Piedra", labelStyle()).setOrigin(0.5);
+    this.registerResourceNode("piedra", "Piedra", x + 8, y + 8, 74, label);
   }
 
   private drawObsidianDeposit(x: number, y: number) {
@@ -160,7 +186,31 @@ class DemoScene extends Phaser.Scene {
     graphics.fillTriangle(x + 18, y - 28, x - 8, y + 42, x + 44, y + 42);
     graphics.lineStyle(3, 0x81d8d0, 0.45);
     graphics.lineBetween(x, y - 42, x - 10, y + 34);
-    this.add.text(x + 4, y + 72, "Obsidiana", labelStyle()).setOrigin(0.5);
+    const label = this.add.text(x + 4, y + 72, "Obsidiana", labelStyle()).setOrigin(0.5);
+    this.registerResourceNode("obsidiana", "Obsidiana", x + 5, y + 2, 72, label);
+  }
+
+  private registerResourceNode(
+    resource: Resource,
+    label: string,
+    x: number,
+    y: number,
+    radius: number,
+    text: Phaser.GameObjects.Text,
+  ) {
+    const node: ResourceNode = {
+      id: `${resource}-${this.resourceNodes.length + 1}`,
+      resource,
+      label,
+      x,
+      y,
+      radius,
+      amount: 500,
+      text,
+    };
+
+    this.resourceNodes.push(node);
+    this.updateResourceNodeLabel(node);
   }
 
   private drawCeremonialCenter(x: number, y: number) {
@@ -177,6 +227,8 @@ class DemoScene extends Phaser.Scene {
     const unit = this.add.container(x, y);
     unit.setData("unit", data);
     unit.setData("target", undefined);
+    unit.setData("gatherTarget", undefined);
+    unit.setData("gatherElapsed", 0);
     unit.setSize(52, 60);
     unit.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
 
@@ -212,7 +264,31 @@ class DemoScene extends Phaser.Scene {
     unit.setDepth(10);
 
     const unitData = unit.getData("unit") as UnitData;
-    this.setStatus(`${unitData.label} seleccionado. Clic derecho para mover.`);
+    const hint = unitData.kind === "aldeano"
+      ? "Clic derecho en recurso para recolectar."
+      : "Clic derecho para mover.";
+    this.setStatus(`${unitData.label} seleccionado. ${hint}`);
+  }
+
+  private handleRightClick(x: number, y: number) {
+    if (!this.selectedUnit) return;
+
+    const unitData = this.selectedUnit.getData("unit") as UnitData;
+    const resourceNode = this.findResourceNodeAt(x, y);
+
+    if (resourceNode) {
+      if (unitData.kind !== "aldeano") {
+        this.setStatus(`${unitData.label} no recolecta recursos.`);
+        return;
+      }
+
+      this.sendUnitToGather(this.selectedUnit, resourceNode);
+      return;
+    }
+
+    this.selectedUnit.setData("gatherTarget", undefined);
+    this.selectedUnit.setData("gatherElapsed", 0);
+    this.moveSelectedUnit(x, y);
   }
 
   private moveSelectedUnit(x: number, y: number) {
@@ -235,6 +311,28 @@ class DemoScene extends Phaser.Scene {
     });
   }
 
+  private sendUnitToGather(unit: Phaser.GameObjects.Container, resourceNode: ResourceNode) {
+    const unitData = unit.getData("unit") as UnitData;
+    const approach = this.getGatherApproachPoint(unit, resourceNode);
+
+    unit.setData("gatherTarget", resourceNode);
+    unit.setData("gatherElapsed", 0);
+    unit.setData("target", approach);
+    this.setStatus(`${unitData.label} va hacia ${resourceNode.label.toLowerCase()} para recolectar.`);
+
+    this.targetMarkers.get(unitData.id)?.destroy();
+    const marker = this.add.circle(resourceNode.x, resourceNode.y, 12, 0x89d26a, 0.85).setStrokeStyle(2, 0x1d281e);
+    this.targetMarkers.set(unitData.id, marker);
+    this.tweens.add({
+      targets: marker,
+      alpha: 0.2,
+      scale: 2,
+      duration: 650,
+      yoyo: true,
+      repeat: 1,
+    });
+  }
+
   private updateUnits(delta: number) {
     const seconds = delta / 1000;
 
@@ -243,13 +341,24 @@ class DemoScene extends Phaser.Scene {
 
       const unitData = child.getData("unit") as UnitData | undefined;
       const target = child.getData("target") as Phaser.Math.Vector2 | undefined;
-      if (!unitData || !target) return true;
+      const gatherTarget = child.getData("gatherTarget") as ResourceNode | undefined;
+      if (!unitData) return true;
+
+      if (!target && gatherTarget) {
+        this.updateGathering(child, unitData, gatherTarget, delta);
+        return true;
+      }
+
+      if (!target) return true;
 
       const distance = Phaser.Math.Distance.Between(child.x, child.y, target.x, target.y);
       if (distance < 4) {
         child.setData("target", undefined);
         this.targetMarkers.get(unitData.id)?.destroy();
         this.targetMarkers.delete(unitData.id);
+        if (gatherTarget) {
+          this.setStatus(`${unitData.label} recolectando ${gatherTarget.label.toLowerCase()}.`);
+        }
         return true;
       }
 
@@ -267,7 +376,7 @@ class DemoScene extends Phaser.Scene {
   }
 
   private createHud() {
-    const panel = this.add.rectangle(18, 18, 420, 122, 0x17261d, 0.86).setOrigin(0);
+    const panel = this.add.rectangle(18, 18, 660, 122, 0x17261d, 0.86).setOrigin(0);
     panel.setScrollFactor(0);
     panel.setStrokeStyle(2, 0xd7bc73, 0.55);
 
@@ -277,7 +386,7 @@ class DemoScene extends Phaser.Scene {
       color: "#f5e5b0",
     }).setScrollFactor(0);
 
-    this.add.text(36, 66, RESOURCES.map((resource) => `${resource}: 200`).join("   "), {
+    this.resourceText = this.add.text(36, 66, this.formatResources(), {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",
       color: "#d9e4c5",
@@ -292,6 +401,128 @@ class DemoScene extends Phaser.Scene {
 
   private setStatus(message: string) {
     this.statusText?.setText(message);
+    document.body.dataset.status = message;
+  }
+
+  private findResourceNodeAt(x: number, y: number) {
+    return this.resourceNodes.find((node) => {
+      const distance = Phaser.Math.Distance.Between(x, y, node.x, node.y);
+      return distance <= node.radius;
+    });
+  }
+
+  private getGatherApproachPoint(unit: Phaser.GameObjects.Container, node: ResourceNode) {
+    const angle = Phaser.Math.Angle.Between(node.x, node.y, unit.x, unit.y);
+    const distance = node.radius + 26;
+    return new Phaser.Math.Vector2(
+      node.x + Math.cos(angle) * distance,
+      node.y + Math.sin(angle) * distance,
+    );
+  }
+
+  private updateGathering(
+    unit: Phaser.GameObjects.Container,
+    unitData: UnitData,
+    node: ResourceNode,
+    delta: number,
+  ) {
+    if (node.amount <= 0) {
+      unit.setData("gatherTarget", undefined);
+      unit.setData("gatherElapsed", 0);
+      this.setStatus(`${node.label} agotado. ${unitData.label} espera nuevas ordenes.`);
+      return;
+    }
+
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, node.x, node.y);
+    if (distance > node.radius + 42) {
+      unit.setData("target", this.getGatherApproachPoint(unit, node));
+      return;
+    }
+
+    const elapsed = (unit.getData("gatherElapsed") as number) + delta;
+    if (elapsed < GATHER_INTERVAL_MS) {
+      unit.setData("gatherElapsed", elapsed);
+      return;
+    }
+
+    const gathered = Math.min(GATHER_AMOUNT, node.amount);
+    node.amount -= gathered;
+    this.resources[node.resource] += gathered;
+    unit.setData("gatherElapsed", 0);
+    this.updateHudResources();
+    this.updateResourceNodeLabel(node);
+    this.pulseResourceGain(unit.x, unit.y - 42, `+${gathered} ${node.resource}`);
+  }
+
+  private updateHudResources() {
+    this.resourceText?.setText(this.formatResources());
+    this.syncDomState();
+  }
+
+  private formatResources() {
+    return RESOURCES.map((resource) => `${resource}: ${this.resources[resource]}`).join("   ");
+  }
+
+  private updateResourceNodeLabel(node: ResourceNode) {
+    node.text.setText(`${node.label} (${node.amount})`);
+    this.syncDomState();
+  }
+
+  private syncDomState() {
+    document.body.dataset.resources = JSON.stringify(this.resources);
+    document.body.dataset.resourceNodes = JSON.stringify(this.resourceNodes.map((node) => ({
+      id: node.id,
+      resource: node.resource,
+      amount: node.amount,
+    })));
+  }
+
+  private pulseResourceGain(x: number, y: number, message: string) {
+    const text = this.add.text(x, y, message, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "14px",
+      color: "#f5d76e",
+      stroke: "#1d281e",
+      strokeThickness: 4,
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 28,
+      alpha: 0,
+      duration: 780,
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private installDebugApi() {
+    const debugApi = {
+      getResources: () => ({ ...this.resources }),
+      getResourceNodes: () => this.resourceNodes.map((node) => ({
+        id: node.id,
+        resource: node.resource,
+        label: node.label,
+        amount: node.amount,
+        x: node.x,
+        y: node.y,
+      })),
+      getSelectedUnit: () => {
+        const unitData = this.selectedUnit?.getData("unit") as UnitData | undefined;
+        return unitData?.id;
+      },
+      gatherFirst: (resource: Resource) => {
+        const node = this.resourceNodes.find((candidate) => candidate.resource === resource);
+        if (!this.selectedUnit || !node) return false;
+
+        const unitData = this.selectedUnit.getData("unit") as UnitData;
+        if (unitData.kind !== "aldeano") return false;
+
+        this.sendUnitToGather(this.selectedUnit, node);
+        return true;
+      },
+    };
+
+    (globalThis as typeof globalThis & { __RQSDebug?: typeof debugApi }).__RQSDebug = debugApi;
   }
 
   private updateCamera(delta: number) {
