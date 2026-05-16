@@ -81,7 +81,7 @@ class DemoScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#254b33");
+    this.cameras.main.setBackgroundColor("#B96542");
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
@@ -1524,7 +1524,7 @@ const config: Phaser.Types.Core.GameConfig = {
   parent: "app",
   width: window.innerWidth,
   height: window.innerHeight,
-  backgroundColor: "#254b33",
+  backgroundColor: "#B96542",
   scene: DemoScene,
   physics: {
     default: "arcade",

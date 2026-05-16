@@ -25,16 +25,18 @@ export function labelStyle(fontSize = 14): Phaser.Types.GameObjects.Text.TextSty
 
 export function drawTerrain(scene: Phaser.Scene) {
   const graphics = scene.add.graphics();
+  const earthTiles = [0xb96542, 0xc47a4e, 0xa9573b, 0xb86f49];
 
   for (let y = 0; y < WORLD_HEIGHT; y += TILE_SIZE) {
     for (let x = 0; x < WORLD_WIDTH; x += TILE_SIZE) {
-      const shade = (x / TILE_SIZE + y / TILE_SIZE) % 2 === 0 ? 0x32613e : 0x2d5939;
+      const tileIndex = (x / TILE_SIZE + y / TILE_SIZE * 2) % earthTiles.length;
+      const shade = earthTiles[tileIndex];
       graphics.fillStyle(shade, 1);
       graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
     }
   }
 
-  graphics.lineStyle(1, 0x446f4a, 0.28);
+  graphics.lineStyle(1, 0x743d2e, 0.24);
   for (let x = 0; x <= WORLD_WIDTH; x += TILE_SIZE) {
     graphics.lineBetween(x, 0, x, WORLD_HEIGHT);
   }
@@ -42,19 +44,64 @@ export function drawTerrain(scene: Phaser.Scene) {
     graphics.lineBetween(0, y, WORLD_WIDTH, y);
   }
 
-  const river = scene.add.graphics();
-  river.lineStyle(72, 0x317d89, 0.9);
-  river.beginPath();
-  river.moveTo(0, 1060);
-  river.lineTo(360, 990);
-  river.lineTo(730, 1070);
-  river.lineTo(1160, 970);
-  river.lineTo(1640, 1030);
-  river.lineTo(2400, 880);
-  river.strokePath();
+  drawWaterBands(scene);
+  drawPlazasAndCauseways(scene);
+}
 
-  river.lineStyle(16, 0x8fc7b7, 0.35);
-  river.strokePath();
+function drawWaterBands(scene: Phaser.Scene) {
+  const water = scene.add.graphics();
+  water.lineStyle(86, 0x27a7b8, 0.94);
+  water.beginPath();
+  water.moveTo(-80, 1070);
+  water.lineTo(330, 990);
+  water.lineTo(730, 1084);
+  water.lineTo(1165, 972);
+  water.lineTo(1640, 1032);
+  water.lineTo(2480, 865);
+  water.strokePath();
+
+  water.lineStyle(28, 0x146c78, 0.42);
+  water.strokePath();
+
+  water.lineStyle(54, 0x27a7b8, 0.86);
+  water.beginPath();
+  water.moveTo(1760, -60);
+  water.lineTo(1650, 230);
+  water.lineTo(1730, 515);
+  water.lineTo(1660, 820);
+  water.lineTo(1770, 1130);
+  water.lineTo(1700, 1660);
+  water.strokePath();
+
+  water.lineStyle(14, 0xd8c99a, 0.28);
+  water.strokePath();
+}
+
+function drawPlazasAndCauseways(scene: Phaser.Scene) {
+  const civic = scene.add.graphics();
+
+  civic.fillStyle(0xd8c99a, 0.92);
+  civic.fillRect(350, 260, 520, 380);
+  civic.fillRect(250, 690, 500, 230);
+  civic.fillRect(970, 470, 430, 260);
+
+  civic.fillStyle(0xcdbb83, 0.92);
+  civic.fillRect(430, 410, 1120, 74);
+  civic.fillRect(505, 225, 78, 930);
+  civic.fillRect(760, 675, 1150, 68);
+
+  civic.lineStyle(4, 0x743d2e, 0.34);
+  civic.strokeRect(350, 260, 520, 380);
+  civic.strokeRect(250, 690, 500, 230);
+  civic.strokeRect(970, 470, 430, 260);
+
+  civic.lineStyle(2, 0xfff4cf, 0.22);
+  for (let x = 365; x < 860; x += 64) {
+    civic.lineBetween(x, 260, x, 640);
+  }
+  for (let y = 285; y < 630; y += 64) {
+    civic.lineBetween(350, y, 870, y);
+  }
 }
 
 export function drawResourceClusters(scene: Phaser.Scene, registerResourceNode: RegisterResourceNode) {
