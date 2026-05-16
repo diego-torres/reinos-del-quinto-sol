@@ -30,7 +30,7 @@ type UnitCargo = {
 
 type UnitWorkState = "idle" | "moving" | "gathering" | "returning";
 
-type BuildingKind = "casa";
+type BuildingKind = "casa" | "telpochcalli";
 
 type DepositAfter = "idle" | "resume-gathering";
 
@@ -61,6 +61,10 @@ const CARRY_CAPACITY: Record<Resource, number> = {
 };
 const HOUSE_WOOD_COST = 50;
 const HOUSE_POPULATION_BONUS = 5;
+const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
+  madera: 120,
+  piedra: 40,
+};
 
 class DemoScene extends Phaser.Scene {
   private selectedUnit?: Phaser.GameObjects.Container;
@@ -132,6 +136,7 @@ class DemoScene extends Phaser.Scene {
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.wasd = this.input.keyboard?.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
     this.input.keyboard?.on("keydown-H", () => this.startHousePlacement());
+    this.input.keyboard?.on("keydown-T", () => this.startTelpochcalliPlacement());
   }
 
   update(_time: number, delta: number) {
@@ -279,6 +284,20 @@ class DemoScene extends Phaser.Scene {
     house.add(this.add.text(0, 82, "Casa", labelStyle(13)).setOrigin(0.5));
   }
 
+  private drawTelpochcalli(x: number, y: number) {
+    const building = this.add.container(x, y);
+    building.setDepth(2);
+    building.add(this.add.ellipse(0, 54, 144, 28, 0x000000, 0.18));
+    building.add(this.add.rectangle(0, 28, 126, 72, 0x9b6b42).setStrokeStyle(4, 0x4d2c21));
+    building.add(this.add.rectangle(0, -20, 148, 36, 0x7d3f2b).setStrokeStyle(4, 0x351d17));
+    building.add(this.add.triangle(-46, -44, -20, -16, -46, -76, -72, -16, 0xd7bc73).setStrokeStyle(3, 0x4d2c21));
+    building.add(this.add.triangle(46, -44, 72, -16, 46, -76, 20, -16, 0xd7bc73).setStrokeStyle(3, 0x4d2c21));
+    building.add(this.add.rectangle(0, 38, 34, 48, 0x271913).setStrokeStyle(2, 0x120b08));
+    building.add(this.add.rectangle(-36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+    building.add(this.add.rectangle(36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+    building.add(this.add.text(0, 104, "Telpochcalli", labelStyle(13)).setOrigin(0.5));
+  }
+
   private createUnit(x: number, y: number, data: UnitData) {
     const unit = this.add.container(x, y);
     unit.setData("unit", data);
@@ -326,7 +345,7 @@ class DemoScene extends Phaser.Scene {
 
     const unitData = unit.getData("unit") as UnitData;
     const hint = unitData.kind === "aldeano"
-      ? "Clic derecho en recurso para recolectar. H para construir casa."
+      ? "Clic derecho en recurso para recolectar. H casa, T telpochcalli."
       : "Clic derecho para mover.";
     this.setStatus(`${unitData.label} seleccionado. ${hint}`);
   }
@@ -524,8 +543,30 @@ class DemoScene extends Phaser.Scene {
     this.setStatus(`Modo construccion: casa cuesta ${HOUSE_WOOD_COST} madera. Clic izquierdo para colocar.`);
   }
 
+  private startTelpochcalliPlacement() {
+    if (!this.selectedUnit) return;
+
+    const unitData = this.selectedUnit.getData("unit") as UnitData;
+    if (unitData.kind !== "aldeano") {
+      this.setStatus("Selecciona un aldeano para construir un telpochcalli.");
+      return;
+    }
+
+    if (!this.canAfford(TELPOCHCALLI_COST)) {
+      this.setStatus(`Recursos insuficientes para telpochcalli. Necesitas ${this.formatCost(TELPOCHCALLI_COST)}.`);
+      return;
+    }
+
+    this.buildMode = "telpochcalli";
+    this.selectedUnit.setData("gatherTarget", undefined);
+    this.selectedUnit.setData("gatherElapsed", 0);
+    this.selectedUnit.setData("target", undefined);
+    this.selectedUnit.setData("workState", "idle" satisfies UnitWorkState);
+    this.setStatus(`Modo construccion: telpochcalli cuesta ${this.formatCost(TELPOCHCALLI_COST)}. Clic izquierdo para colocar.`);
+  }
+
   private placeBuilding(x: number, y: number) {
-    if (this.buildMode !== "casa") return;
+    if (!this.buildMode) return;
 
     if (!this.selectedUnit) {
       this.cancelBuildMode("Selecciona un aldeano para construir.");
@@ -538,31 +579,39 @@ class DemoScene extends Phaser.Scene {
       return;
     }
 
-    if (this.resources.madera < HOUSE_WOOD_COST) {
-      this.cancelBuildMode(`Madera insuficiente para casa. Necesitas ${HOUSE_WOOD_COST}.`);
+    const cost = this.getBuildingCost(this.buildMode);
+    if (!this.canAfford(cost)) {
+      this.cancelBuildMode(`Recursos insuficientes. Necesitas ${this.formatCost(cost)}.`);
       return;
     }
 
-    if (!this.canPlaceHouseAt(x, y)) {
-      this.setStatus("No puedes colocar la casa tan cerca de otra estructura o recurso.");
+    if (!this.canPlaceBuildingAt(x, y, this.buildMode)) {
+      this.setStatus("No puedes colocar ese edificio tan cerca de otra estructura o recurso.");
       return;
     }
 
     const building: BuildingData = {
-      id: `casa-${this.buildings.length + 1}`,
-      kind: "casa",
-      label: "Casa",
+      id: `${this.buildMode}-${this.buildings.length + 1}`,
+      kind: this.buildMode,
+      label: this.buildMode === "casa" ? "Casa" : "Telpochcalli",
       x,
       y,
-      populationBonus: HOUSE_POPULATION_BONUS,
+      populationBonus: this.buildMode === "casa" ? HOUSE_POPULATION_BONUS : 0,
     };
 
-    this.resources.madera -= HOUSE_WOOD_COST;
-    this.populationLimit += HOUSE_POPULATION_BONUS;
+    this.spendResources(cost);
+    this.populationLimit += building.populationBonus;
     this.buildings.push(building);
-    this.drawHouse(x, y);
+    if (building.kind === "casa") {
+      this.drawHouse(x, y);
+    } else {
+      this.drawTelpochcalli(x, y);
+    }
     this.updateHudResources();
-    this.cancelBuildMode(`Casa construida. Limite de poblacion: ${this.population}/${this.populationLimit}.`);
+    const extra = building.kind === "casa"
+      ? ` Limite de poblacion: ${this.population}/${this.populationLimit}.`
+      : " Listo para entrenar guerreros cuando agreguemos produccion.";
+    this.cancelBuildMode(`${building.label} construido.${extra}`);
   }
 
   private cancelBuildMode(message: string) {
@@ -570,17 +619,40 @@ class DemoScene extends Phaser.Scene {
     this.setStatus(message);
   }
 
-  private canPlaceHouseAt(x: number, y: number) {
+  private canPlaceBuildingAt(x: number, y: number, kind: BuildingKind) {
     if (x < 80 || y < 80 || x > WORLD_WIDTH - 80 || y > WORLD_HEIGHT - 80) return false;
 
+    const buildingRadius = kind === "casa" ? 112 : 146;
     const nearResource = this.resourceNodes.some((node) => {
-      return Phaser.Math.Distance.Between(x, y, node.x, node.y) < node.radius + 54;
+      return Phaser.Math.Distance.Between(x, y, node.x, node.y) < node.radius + (kind === "casa" ? 54 : 82);
     });
     if (nearResource) return false;
 
     return !this.buildings.some((building) => {
-      return Phaser.Math.Distance.Between(x, y, building.x, building.y) < 112;
+      return Phaser.Math.Distance.Between(x, y, building.x, building.y) < buildingRadius;
     });
+  }
+
+  private getBuildingCost(kind: BuildingKind): Partial<Record<Resource, number>> {
+    if (kind === "casa") return { madera: HOUSE_WOOD_COST };
+    return TELPOCHCALLI_COST;
+  }
+
+  private canAfford(cost: Partial<Record<Resource, number>>) {
+    return RESOURCES.every((resource) => this.resources[resource] >= (cost[resource] ?? 0));
+  }
+
+  private spendResources(cost: Partial<Record<Resource, number>>) {
+    RESOURCES.forEach((resource) => {
+      this.resources[resource] -= cost[resource] ?? 0;
+    });
+  }
+
+  private formatCost(cost: Partial<Record<Resource, number>>) {
+    return RESOURCES
+      .filter((resource) => (cost[resource] ?? 0) > 0)
+      .map((resource) => `${cost[resource]} ${resource}`)
+      .join(", ");
   }
 
   private findResourceNodeAt(x: number, y: number) {
