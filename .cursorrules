@@ -1,0 +1,79 @@
+# Cursor Rules for Reinos del Quinto Sol
+
+You are collaborating on **Reinos del Quinto Sol**, an open source online RTS inspired by pre-Hispanic Mesoamerican civilizations.
+
+## Core Intent
+
+- Build an original RTS with classic strategy readability and Mesoamerican identity.
+- Do not copy proprietary game assets, code, audio, campaign text, exact balance, UI identity, or branding from Age of Empires or any other commercial game.
+- Treat historical cultures respectfully. Avoid generic fantasy flattening, stereotypes, or reducing the setting to conquest and sacrifice.
+
+## Repository Map
+
+- `apps/client`: Vite + TypeScript + Phaser web client.
+- `apps/server`: TypeScript server for online play.
+- `packages/shared`: shared types, game data, commands, and rules.
+- `docs/diseno`: roadmap, art direction, campaign notes.
+- `docs/historia`: historical research notes.
+- `docs/tecnica`: technical decisions.
+- `assets`: source assets and placeholders.
+
+## Coding Rules
+
+- Use strict TypeScript.
+- Prefer existing project patterns over new abstractions.
+- Keep gameplay state explicit and testable.
+- Put client-only rendering and input in `apps/client`.
+- Put shared gameplay types/data in `packages/shared` when server and client both need them.
+- Avoid adding dependencies unless they clearly simplify core RTS work.
+- Keep commits and changes focused.
+- Do not perform broad refactors while implementing a small feature.
+
+## Frontend / Game Rules
+
+- Phaser is the gameplay renderer.
+- Prioritize readable top-down RTS interactions.
+- Units must be distinguishable by silhouette and role.
+- Resources and buildings must be recognizable quickly.
+- Gameplay should come before final art.
+- Placeholder art is acceptable when it helps playability.
+
+## Current Gameplay Direction
+
+Near-term features should follow this order:
+
+1. Resource gathering.
+2. Basic construction.
+3. Population limit.
+4. Unit production.
+5. Simple combat.
+6. Win/loss condition.
+7. Online synchronization.
+
+## Verification
+
+Before proposing completion for code changes, run:
+
+```bash
+npm run typecheck
+npm run build
+```
+
+For local browser testing:
+
+```bash
+npm run dev --workspace @reinos/client -- --host 127.0.0.1 --port 5173
+```
+
+## Documentation
+
+- Update docs when a feature changes design direction.
+- Add historical notes when a culture-specific mechanic, unit, building, or campaign element is introduced.
+- Keep docs in Spanish unless there is a clear reason to do otherwise.
+
+## Safety
+
+- Never commit secrets, tokens, private keys, or `.env` files.
+- Do not use assets with unclear licensing.
+- Do not rewrite Git history or revert others' work without explicit permission.
+
