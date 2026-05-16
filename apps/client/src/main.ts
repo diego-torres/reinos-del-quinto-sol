@@ -21,6 +21,8 @@ type ResourceNode = {
   radius: number;
   amount: number;
   text: Phaser.GameObjects.Text;
+  visuals: Phaser.GameObjects.GameObject[];
+  depleted: boolean;
 };
 
 type UnitCargo = {
@@ -200,7 +202,7 @@ class DemoScene extends Phaser.Scene {
       group.add([stalk, cob]);
     }
     const label = this.add.text(x - 8, y + 92, "Maizal", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("maiz", "Maizal", x + 56, y + 34, 94, label);
+    this.registerResourceNode("maiz", "Maizal", x + 56, y + 34, 94, label, [group, label]);
   }
 
   private drawForest(x: number, y: number) {
@@ -213,7 +215,7 @@ class DemoScene extends Phaser.Scene {
       group.add(this.add.triangle(px, py - 18, -21, 22, 0, -30, 21, 22, 0x23824a));
     }
     const label = this.add.text(x + 62, y + 142, "Bosque", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("madera", "Bosque", x + 66, y + 52, 118, label);
+    this.registerResourceNode("madera", "Bosque", x + 66, y + 52, 118, label, [group, label]);
   }
 
   private drawStoneOutcrop(x: number, y: number) {
@@ -225,7 +227,7 @@ class DemoScene extends Phaser.Scene {
     graphics.fillStyle(0xd5d1b8, 1);
     graphics.fillCircle(x - 26, y + 28, 24);
     const label = this.add.text(x + 10, y + 70, "Piedra", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("piedra", "Piedra", x + 8, y + 8, 74, label);
+    this.registerResourceNode("piedra", "Piedra", x + 8, y + 8, 74, label, [graphics, label]);
   }
 
   private drawObsidianDeposit(x: number, y: number) {
@@ -237,7 +239,7 @@ class DemoScene extends Phaser.Scene {
     graphics.lineStyle(3, 0x81d8d0, 0.45);
     graphics.lineBetween(x, y - 42, x - 10, y + 34);
     const label = this.add.text(x + 4, y + 72, "Obsidiana", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("obsidiana", "Obsidiana", x + 5, y + 2, 72, label);
+    this.registerResourceNode("obsidiana", "Obsidiana", x + 5, y + 2, 72, label, [graphics, label]);
   }
 
   private registerResourceNode(
@@ -247,6 +249,7 @@ class DemoScene extends Phaser.Scene {
     y: number,
     radius: number,
     text: Phaser.GameObjects.Text,
+    visuals: Phaser.GameObjects.GameObject[],
   ) {
     const node: ResourceNode = {
       id: `${resource}-${this.resourceNodes.length + 1}`,
@@ -257,6 +260,8 @@ class DemoScene extends Phaser.Scene {
       radius,
       amount: 500,
       text,
+      visuals,
+      depleted: false,
     };
 
     this.resourceNodes.push(node);
@@ -624,6 +629,7 @@ class DemoScene extends Phaser.Scene {
 
     const buildingRadius = kind === "casa" ? 112 : 146;
     const nearResource = this.resourceNodes.some((node) => {
+      if (node.depleted) return false;
       return Phaser.Math.Distance.Between(x, y, node.x, node.y) < node.radius + (kind === "casa" ? 54 : 82);
     });
     if (nearResource) return false;
@@ -657,6 +663,7 @@ class DemoScene extends Phaser.Scene {
 
   private findResourceNodeAt(x: number, y: number) {
     return this.resourceNodes.find((node) => {
+      if (node.depleted || node.amount <= 0) return false;
       const distance = Phaser.Math.Distance.Between(x, y, node.x, node.y);
       return distance <= node.radius;
     });
@@ -871,7 +878,22 @@ class DemoScene extends Phaser.Scene {
   }
 
   private updateResourceNodeLabel(node: ResourceNode) {
+    if (node.amount <= 0) {
+      this.depleteResourceNode(node);
+      return;
+    }
+
     node.text.setText(`${node.label} (${node.amount})`);
+    this.syncDomState();
+  }
+
+  private depleteResourceNode(node: ResourceNode) {
+    if (node.depleted) return;
+
+    node.depleted = true;
+    node.amount = 0;
+    node.visuals.forEach((visual) => visual.destroy());
+    this.setStatus(`${node.label} agotado.`);
     this.syncDomState();
   }
 
@@ -881,6 +903,7 @@ class DemoScene extends Phaser.Scene {
       id: node.id,
       resource: node.resource,
       amount: node.amount,
+      depleted: node.depleted,
     })));
     document.body.dataset.population = JSON.stringify({
       current: this.population,
@@ -917,6 +940,7 @@ class DemoScene extends Phaser.Scene {
         resource: node.resource,
         label: node.label,
         amount: node.amount,
+        depleted: node.depleted,
         x: node.x,
         y: node.y,
       })),
@@ -948,9 +972,18 @@ class DemoScene extends Phaser.Scene {
           buildings: [...this.buildings],
         };
       },
+      exhaustFirst: (resource: Resource) => {
+        const node = this.resourceNodes.find((candidate) => candidate.resource === resource && !candidate.depleted);
+        if (!node) return false;
+
+        node.amount = 0;
+        this.updateResourceNodeLabel(node);
+        return true;
+      },
     };
 
     (globalThis as typeof globalThis & { __RQSDebug?: typeof debugApi }).__RQSDebug = debugApi;
+    (window as typeof window & { __RQSDebug?: typeof debugApi }).__RQSDebug = debugApi;
   }
 
   private getDebugUnits() {
