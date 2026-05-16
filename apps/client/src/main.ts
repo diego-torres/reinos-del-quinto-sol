@@ -12,6 +12,13 @@ type UnitData = {
   speed: number;
 };
 
+type UnitStats = {
+  maxHealth: number;
+  attack: number;
+  range: number;
+  cooldownMs: number;
+};
+
 type ResourceNode = {
   id: string;
   resource: Resource;
@@ -52,6 +59,26 @@ type TrainingDefinition = {
   durationMs: number;
 };
 
+type MythicBeast = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  container: Phaser.GameObjects.Container;
+  health: number;
+  maxHealth: number;
+  attack: number;
+  range: number;
+  speed: number;
+  cooldownMs: number;
+  attackElapsed: number;
+  dormant: boolean;
+  dead: boolean;
+  targetUnit?: Phaser.GameObjects.Container;
+  reward: Partial<Record<Resource, number>>;
+  healthText: Phaser.GameObjects.Text;
+};
+
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1600;
 const TILE_SIZE = 96;
@@ -73,6 +100,20 @@ const HOUSE_POPULATION_BONUS = 5;
 const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
   madera: 120,
   piedra: 40,
+};
+const UNIT_STATS: Record<UnitKind, UnitStats> = {
+  aldeano: {
+    maxHealth: 55,
+    attack: 2,
+    range: 34,
+    cooldownMs: 1200,
+  },
+  guerrero: {
+    maxHealth: 95,
+    attack: 14,
+    range: 58,
+    cooldownMs: 850,
+  },
 };
 const TRAINING: Record<UnitKind, TrainingDefinition> = {
   aldeano: {
@@ -102,6 +143,7 @@ class DemoScene extends Phaser.Scene {
   private resourceNodes: ResourceNode[] = [];
   private buildings: BuildingData[] = [];
   private units: Phaser.GameObjects.Container[] = [];
+  private camazotz?: MythicBeast;
   private nextUnitId = 2;
   private isTrainingVillager = false;
   private isTrainingWarrior = false;
@@ -126,6 +168,7 @@ class DemoScene extends Phaser.Scene {
     this.drawTerrain();
     this.drawResourceClusters();
     this.drawCeremonialCenter(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
+    this.camazotz = this.createCamazotz(1010, 780);
 
     const aldeano = this.createUnit(780, 620, {
       id: "aldeano-1",
@@ -171,6 +214,7 @@ class DemoScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     this.updateCamera(delta);
     this.updateUnits(delta);
+    this.updateBeast(delta);
   }
 
   private drawTerrain() {
@@ -330,9 +374,53 @@ class DemoScene extends Phaser.Scene {
     building.add(this.add.text(0, 104, "Telpochcalli", labelStyle(13)).setOrigin(0.5));
   }
 
+  private createCamazotz(x: number, y: number): MythicBeast {
+    const container = this.add.container(x, y);
+    container.setDepth(3);
+
+    container.add(this.add.ellipse(0, 48, 150, 26, 0x000000, 0.25));
+    container.add(this.add.triangle(-44, -4, -138, 34, -26, 22, -66, -72, 0x211827).setStrokeStyle(3, 0x5c2745));
+    container.add(this.add.triangle(44, -4, 138, 34, 26, 22, 66, -72, 0x211827).setStrokeStyle(3, 0x5c2745));
+    container.add(this.add.ellipse(0, 8, 70, 86, 0x37213a).setStrokeStyle(4, 0x130d19));
+    container.add(this.add.circle(-18, -20, 8, 0xf5d76e));
+    container.add(this.add.circle(18, -20, 8, 0xf5d76e));
+    container.add(this.add.triangle(0, -2, -8, 14, 0, 30, 8, 14, 0xe8e0c8));
+    container.add(this.add.triangle(-20, -52, -8, -28, -30, -28, -26, -76, 0x2b1d33));
+    container.add(this.add.triangle(20, -52, 8, -28, 30, -28, 26, -76, 0x2b1d33));
+
+    const healthText = this.add.text(0, 92, "Camazotz dormido 90/90", labelStyle(13)).setOrigin(0.5);
+    container.add(healthText);
+
+    return {
+      id: "camazotz-1",
+      name: "Camazotz",
+      x,
+      y,
+      container,
+      health: 90,
+      maxHealth: 90,
+      attack: 10,
+      range: 66,
+      speed: 115,
+      cooldownMs: 1100,
+      attackElapsed: 0,
+      dormant: true,
+      dead: false,
+      reward: {
+        maiz: 100,
+        piedra: 80,
+        obsidiana: 50,
+      },
+      healthText,
+    };
+  }
+
   private createUnit(x: number, y: number, data: UnitData) {
     const unit = this.add.container(x, y);
     unit.setData("unit", data);
+    unit.setData("health", UNIT_STATS[data.kind].maxHealth);
+    unit.setData("attackElapsed", 0);
+    unit.setData("attackTarget", undefined);
     unit.setData("target", undefined);
     unit.setData("gatherTarget", undefined);
     unit.setData("gatherElapsed", 0);
@@ -350,10 +438,11 @@ class DemoScene extends Phaser.Scene {
     const marker = data.kind === "guerrero"
       ? this.add.triangle(0, -44, -12, 10, 0, -12, 12, 10, 0x223d63)
       : this.add.arc(0, -39, 13, 210, 330, false, 0xf0c94a);
-    const label = this.add.text(0, 50, data.label, labelStyle(13)).setOrigin(0.5);
+    const label = this.add.text(0, 50, `${data.label} ${UNIT_STATS[data.kind].maxHealth}/${UNIT_STATS[data.kind].maxHealth}`, labelStyle(13)).setOrigin(0.5);
     const cargoLabel = this.add.text(0, 68, "", labelStyle(12)).setOrigin(0.5);
 
     unit.add([shadow, body, head, accent, marker, label, cargoLabel]);
+    unit.setData("healthLabel", label);
     unit.setData("cargoLabel", cargoLabel);
     this.updateUnitCargoLabel(unit);
 
@@ -388,6 +477,12 @@ class DemoScene extends Phaser.Scene {
 
     const unitData = this.selectedUnit.getData("unit") as UnitData;
     const resourceNode = this.findResourceNodeAt(x, y);
+    const beast = this.findBeastAt(x, y);
+
+    if (beast) {
+      this.sendSelectedUnitToAttack(unitData, beast);
+      return;
+    }
 
     if (resourceNode) {
       if (unitData.kind !== "aldeano") {
@@ -406,6 +501,7 @@ class DemoScene extends Phaser.Scene {
 
     this.selectedUnit.setData("gatherTarget", undefined);
     this.selectedUnit.setData("gatherElapsed", 0);
+    this.selectedUnit.setData("attackTarget", undefined);
     this.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
     this.moveSelectedUnit(x, y);
   }
@@ -416,6 +512,7 @@ class DemoScene extends Phaser.Scene {
     const unitData = this.selectedUnit.getData("unit") as UnitData;
     this.selectedUnit.setData("target", new Phaser.Math.Vector2(x, y));
     this.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
+    this.selectedUnit.setData("attackTarget", undefined);
     this.setStatus(`${unitData.label} avanzando a ${Math.round(x)}, ${Math.round(y)}.`);
 
     this.targetMarkers.get(unitData.id)?.destroy();
@@ -464,7 +561,13 @@ class DemoScene extends Phaser.Scene {
       const target = child.getData("target") as Phaser.Math.Vector2 | undefined;
       const gatherTarget = child.getData("gatherTarget") as ResourceNode | undefined;
       const workState = child.getData("workState") as UnitWorkState | undefined;
+      const attackTarget = child.getData("attackTarget") as MythicBeast | undefined;
       if (!unitData) return true;
+
+      if (attackTarget && !attackTarget.dead) {
+        this.updateUnitAttack(child, unitData, attackTarget, delta);
+        return true;
+      }
 
       if (!target && gatherTarget) {
         if (workState === "returning") {
@@ -734,6 +837,189 @@ class DemoScene extends Phaser.Scene {
       Phaser.Math.Clamp(x + Math.cos(angle) * distance, 80, WORLD_WIDTH - 80),
       Phaser.Math.Clamp(y + Math.sin(angle) * distance, 80, WORLD_HEIGHT - 80),
     );
+  }
+
+  private sendSelectedUnitToAttack(unitData: UnitData, beast: MythicBeast) {
+    if (!this.selectedUnit || beast.dead) return;
+
+    if (unitData.kind !== "guerrero") {
+      const warrior = this.units.find((unit) => {
+        const candidate = unit.getData("unit") as UnitData | undefined;
+        return candidate?.kind === "guerrero";
+      });
+
+      if (!warrior) {
+        this.setStatus("Necesitas un guerrero para atacar a Camazotz.");
+        return;
+      }
+
+      this.selectUnit(warrior);
+    }
+
+    const attacker = this.selectedUnit;
+    attacker.setData("gatherTarget", undefined);
+    attacker.setData("gatherElapsed", 0);
+    attacker.setData("attackTarget", beast);
+    attacker.setData("workState", "moving" satisfies UnitWorkState);
+    beast.dormant = false;
+    beast.targetUnit = attacker;
+    this.updateBeastLabel(beast);
+    this.setStatus("Camazotz ha despertado. El guerrero ataca.");
+  }
+
+  private updateUnitAttack(unit: Phaser.GameObjects.Container, unitData: UnitData, beast: MythicBeast, delta: number) {
+    const stats = UNIT_STATS[unitData.kind];
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, beast.x, beast.y);
+
+    if (distance > stats.range) {
+      unit.setData("target", this.getApproachPoint(unit.x, unit.y, beast.x, beast.y, stats.range - 6));
+      this.moveUnitTowardTarget(unit, unitData, delta);
+      return;
+    }
+
+    unit.setData("target", undefined);
+    const elapsed = (unit.getData("attackElapsed") as number) + delta;
+    if (elapsed < stats.cooldownMs) {
+      unit.setData("attackElapsed", elapsed);
+      return;
+    }
+
+    beast.health = Math.max(0, beast.health - stats.attack);
+    unit.setData("attackElapsed", 0);
+    this.pulseResourceGain(beast.x, beast.y - 72, `-${stats.attack}`);
+    this.updateBeastLabel(beast);
+
+    if (beast.health <= 0) {
+      this.killBeast(beast);
+    }
+  }
+
+  private updateBeast(delta: number) {
+    const beast = this.camazotz;
+    if (!beast || beast.dead || beast.dormant) return;
+
+    const target = this.findBeastTarget(beast);
+    if (!target) {
+      beast.targetUnit = undefined;
+      return;
+    }
+
+    beast.targetUnit = target;
+    const distance = Phaser.Math.Distance.Between(beast.x, beast.y, target.x, target.y);
+    if (distance > beast.range) {
+      const point = this.getApproachPoint(beast.x, beast.y, target.x, target.y, beast.range - 8);
+      const step = Math.min(distance, beast.speed * (delta / 1000));
+      const angle = Phaser.Math.Angle.Between(beast.x, beast.y, point.x, point.y);
+      beast.x += Math.cos(angle) * step;
+      beast.y += Math.sin(angle) * step;
+      beast.container.setPosition(beast.x, beast.y);
+      return;
+    }
+
+    beast.attackElapsed += delta;
+    if (beast.attackElapsed < beast.cooldownMs) return;
+
+    beast.attackElapsed = 0;
+    this.damageUnit(target, beast.attack);
+  }
+
+  private findBeastTarget(beast: MythicBeast) {
+    if (beast.targetUnit && this.units.includes(beast.targetUnit)) return beast.targetUnit;
+
+    return this.units.find((unit) => {
+      const unitData = unit.getData("unit") as UnitData | undefined;
+      if (!unitData || unitData.kind !== "guerrero") return false;
+      return Phaser.Math.Distance.Between(unit.x, unit.y, beast.x, beast.y) < 380;
+    });
+  }
+
+  private damageUnit(unit: Phaser.GameObjects.Container, damage: number) {
+    const unitData = unit.getData("unit") as UnitData;
+    const health = Math.max(0, (unit.getData("health") as number) - damage);
+    unit.setData("health", health);
+    this.updateUnitHealthLabel(unit);
+    this.pulseResourceGain(unit.x, unit.y - 44, `-${damage}`);
+
+    if (health > 0) return;
+
+    this.killUnit(unit, unitData);
+  }
+
+  private killUnit(unit: Phaser.GameObjects.Container, unitData: UnitData) {
+    this.units = this.units.filter((candidate) => candidate !== unit);
+    this.population = Math.max(0, this.population - TRAINING[unitData.kind].population);
+    if (this.selectedUnit === unit) {
+      this.selectedUnit = undefined;
+      this.selectionRing?.destroy();
+      this.selectionRing = undefined;
+    }
+    unit.destroy();
+    this.setStatus(`${unitData.label} ha caido en combate.`);
+    this.updateHudResources();
+  }
+
+  private killBeast(beast: MythicBeast) {
+    beast.dead = true;
+    beast.container.destroy();
+    this.units.forEach((unit) => {
+      if (unit.getData("attackTarget") === beast) {
+        unit.setData("attackTarget", undefined);
+        unit.setData("workState", "idle" satisfies UnitWorkState);
+      }
+    });
+    RESOURCES.forEach((resource) => {
+      this.resources[resource] += beast.reward[resource] ?? 0;
+    });
+    this.setStatus(`Camazotz fue derrotado. Botin: ${this.formatCost(beast.reward)}.`);
+    this.updateHudResources();
+  }
+
+  private findBeastAt(x: number, y: number) {
+    const beast = this.camazotz;
+    if (!beast || beast.dead) return undefined;
+
+    return Phaser.Math.Distance.Between(x, y, beast.x, beast.y) <= 100 ? beast : undefined;
+  }
+
+  private getApproachPoint(fromX: number, fromY: number, toX: number, toY: number, range: number) {
+    const angle = Phaser.Math.Angle.Between(toX, toY, fromX, fromY);
+    return new Phaser.Math.Vector2(
+      toX + Math.cos(angle) * range,
+      toY + Math.sin(angle) * range,
+    );
+  }
+
+  private moveUnitTowardTarget(unit: Phaser.GameObjects.Container, unitData: UnitData, delta: number) {
+    const target = unit.getData("target") as Phaser.Math.Vector2 | undefined;
+    if (!target) return;
+
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, target.x, target.y);
+    if (distance < 4) {
+      unit.setData("target", undefined);
+      return;
+    }
+
+    const step = Math.min(distance, unitData.speed * (delta / 1000));
+    const angle = Phaser.Math.Angle.Between(unit.x, unit.y, target.x, target.y);
+    unit.x += Math.cos(angle) * step;
+    unit.y += Math.sin(angle) * step;
+
+    if (unit === this.selectedUnit && this.selectionRing) {
+      this.selectionRing.setPosition(unit.x, unit.y + 8);
+    }
+  }
+
+  private updateUnitHealthLabel(unit: Phaser.GameObjects.Container) {
+    const unitData = unit.getData("unit") as UnitData;
+    const healthLabel = unit.getData("healthLabel") as Phaser.GameObjects.Text | undefined;
+    if (!healthLabel) return;
+
+    healthLabel.setText(`${unitData.label} ${unit.getData("health")}/${UNIT_STATS[unitData.kind].maxHealth}`);
+  }
+
+  private updateBeastLabel(beast: MythicBeast) {
+    const state = beast.dormant ? "dormido" : "despierto";
+    beast.healthText.setText(`${beast.name} ${state} ${beast.health}/${beast.maxHealth}`);
   }
 
   private cancelBuildMode(message: string) {
@@ -1033,6 +1319,17 @@ class DemoScene extends Phaser.Scene {
       villager: this.isTrainingVillager,
       warrior: this.isTrainingWarrior,
     });
+    document.body.dataset.beast = JSON.stringify(this.camazotz
+      ? {
+          id: this.camazotz.id,
+          name: this.camazotz.name,
+          health: this.camazotz.health,
+          maxHealth: this.camazotz.maxHealth,
+          dormant: this.camazotz.dormant,
+          dead: this.camazotz.dead,
+          reward: this.camazotz.reward,
+        }
+      : undefined);
   }
 
   private pulseResourceGain(x: number, y: number, message: string) {
@@ -1071,6 +1368,13 @@ class DemoScene extends Phaser.Scene {
       },
       getCarryCapacity: () => ({ ...CARRY_CAPACITY }),
       getUnits: () => this.getDebugUnits(),
+      getBeast: () => this.camazotz ? {
+        id: this.camazotz.id,
+        name: this.camazotz.name,
+        health: this.camazotz.health,
+        dormant: this.camazotz.dormant,
+        dead: this.camazotz.dead,
+      } : undefined,
       trainVillager: () => {
         this.trainVillager();
         return {
