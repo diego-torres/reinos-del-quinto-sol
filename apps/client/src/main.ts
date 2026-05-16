@@ -8,138 +8,41 @@ import {
   type Resource,
   type ServerMessage,
 } from "@reinos/shared";
+import {
+  createCamazotz,
+  drawCeremonialCenter,
+  drawHouse,
+  drawResourceClusters,
+  drawTelpochcalli,
+  drawTerrain,
+  labelStyle,
+} from "./art.js";
+import {
+  CARRY_CAPACITY,
+  CEREMONIAL_CENTER,
+  GATHER_AMOUNT,
+  GATHER_INTERVAL_MS,
+  HOUSE_POPULATION_BONUS,
+  HOUSE_WOOD_COST,
+  TELPOCHCALLI_COST,
+  TRAINING,
+  UNIT_STATS,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  getBuildingCost,
+} from "./rules.js";
+import type {
+  BuildingData,
+  BuildingKind,
+  DepositAfter,
+  MythicBeast,
+  ResourceNode,
+  UnitCargo,
+  UnitData,
+  UnitKind,
+  UnitWorkState,
+} from "./types.js";
 import "./styles.css";
-
-type UnitKind = "aldeano" | "guerrero";
-
-type UnitData = {
-  id: string;
-  kind: UnitKind;
-  label: string;
-  color: number;
-  speed: number;
-  ownerId?: string;
-};
-
-type UnitStats = {
-  maxHealth: number;
-  attack: number;
-  range: number;
-  cooldownMs: number;
-};
-
-type ResourceNode = {
-  id: string;
-  resource: Resource;
-  label: string;
-  x: number;
-  y: number;
-  radius: number;
-  amount: number;
-  text: Phaser.GameObjects.Text;
-  visuals: Phaser.GameObjects.GameObject[];
-  depleted: boolean;
-};
-
-type UnitCargo = {
-  resource?: Resource;
-  amount: number;
-};
-
-type UnitWorkState = "idle" | "moving" | "gathering" | "returning";
-
-type BuildingKind = "casa" | "telpochcalli";
-
-type DepositAfter = "idle" | "resume-gathering";
-
-type BuildingData = {
-  id: string;
-  kind: BuildingKind;
-  label: string;
-  x: number;
-  y: number;
-  ownerId?: string;
-  populationBonus: number;
-  container?: Phaser.GameObjects.Container;
-};
-
-type TrainingDefinition = {
-  label: string;
-  cost: Partial<Record<Resource, number>>;
-  population: number;
-  durationMs: number;
-};
-
-type MythicBeast = {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  container: Phaser.GameObjects.Container;
-  health: number;
-  maxHealth: number;
-  attack: number;
-  range: number;
-  speed: number;
-  cooldownMs: number;
-  attackElapsed: number;
-  dormant: boolean;
-  dead: boolean;
-  targetUnit?: Phaser.GameObjects.Container;
-  reward: Partial<Record<Resource, number>>;
-  healthText: Phaser.GameObjects.Text;
-};
-
-const WORLD_WIDTH = 2400;
-const WORLD_HEIGHT = 1600;
-const TILE_SIZE = 96;
-const GATHER_INTERVAL_MS = 1000;
-const GATHER_AMOUNT = 10;
-const CEREMONIAL_CENTER = {
-  x: 520,
-  y: 470,
-  depositRadius: 180,
-};
-const CARRY_CAPACITY: Record<Resource, number> = {
-  maiz: 30,
-  madera: 25,
-  piedra: 20,
-  obsidiana: 15,
-};
-const HOUSE_WOOD_COST = 50;
-const HOUSE_POPULATION_BONUS = 5;
-const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
-  madera: 120,
-  piedra: 40,
-};
-const UNIT_STATS: Record<UnitKind, UnitStats> = {
-  aldeano: {
-    maxHealth: 55,
-    attack: 2,
-    range: 34,
-    cooldownMs: 1200,
-  },
-  guerrero: {
-    maxHealth: 95,
-    attack: 14,
-    range: 58,
-    cooldownMs: 850,
-  },
-};
-const TRAINING: Record<UnitKind, TrainingDefinition> = {
-  aldeano: {
-    label: "Aldeano",
-    cost: { maiz: 50 },
-    population: 1,
-    durationMs: 1400,
-  },
-  guerrero: {
-    label: "Guerrero",
-    cost: { maiz: 60, obsidiana: 20 },
-    population: 1,
-    durationMs: 1700,
-  },
-};
 
 class DemoScene extends Phaser.Scene {
   private selectedUnit?: Phaser.GameObjects.Container;
@@ -182,10 +85,10 @@ class DemoScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-    this.drawTerrain();
-    this.drawResourceClusters();
-    this.drawCeremonialCenter(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
-    this.camazotz = this.createCamazotz(1010, 780);
+    drawTerrain(this);
+    drawResourceClusters(this, this.registerResourceNode.bind(this));
+    drawCeremonialCenter(this, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
+    this.camazotz = createCamazotz(this, 1010, 780);
 
     const aldeano = this.createUnit(780, 620, {
       id: "aldeano-1",
@@ -235,102 +138,6 @@ class DemoScene extends Phaser.Scene {
     this.updateBeast(delta);
   }
 
-  private drawTerrain() {
-    const graphics = this.add.graphics();
-
-    for (let y = 0; y < WORLD_HEIGHT; y += TILE_SIZE) {
-      for (let x = 0; x < WORLD_WIDTH; x += TILE_SIZE) {
-        const shade = (x / TILE_SIZE + y / TILE_SIZE) % 2 === 0 ? 0x32613e : 0x2d5939;
-        graphics.fillStyle(shade, 1);
-        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-      }
-    }
-
-    graphics.lineStyle(1, 0x446f4a, 0.28);
-    for (let x = 0; x <= WORLD_WIDTH; x += TILE_SIZE) {
-      graphics.lineBetween(x, 0, x, WORLD_HEIGHT);
-    }
-    for (let y = 0; y <= WORLD_HEIGHT; y += TILE_SIZE) {
-      graphics.lineBetween(0, y, WORLD_WIDTH, y);
-    }
-
-    const river = this.add.graphics();
-    river.lineStyle(72, 0x317d89, 0.9);
-    river.beginPath();
-    river.moveTo(0, 1060);
-    river.lineTo(360, 990);
-    river.lineTo(730, 1070);
-    river.lineTo(1160, 970);
-    river.lineTo(1640, 1030);
-    river.lineTo(2400, 880);
-    river.strokePath();
-
-    river.lineStyle(16, 0x8fc7b7, 0.35);
-    river.strokePath();
-  }
-
-  private drawResourceClusters() {
-    this.drawMaizeField(620, 520);
-    this.drawMaizeField(280, 780);
-    this.drawMaizeField(1080, 560);
-    this.drawForest(1360, 350);
-    this.drawForest(1760, 740);
-    this.drawStoneOutcrop(690, 1030);
-    this.drawStoneOutcrop(1650, 1120);
-    this.drawObsidianDeposit(1120, 1120);
-    this.drawObsidianDeposit(2050, 430);
-  }
-
-  private drawMaizeField(x: number, y: number) {
-    const group = this.add.container(x, y);
-    for (let i = 0; i < 18; i++) {
-      const px = (i % 6) * 24;
-      const py = Math.floor(i / 6) * 30;
-      const stalk = this.add.rectangle(px, py, 5, 34, 0x73a942);
-      const cob = this.add.ellipse(px + 5, py - 4, 11, 22, 0xf0c94a);
-      group.add([stalk, cob]);
-    }
-    const label = this.add.text(x - 8, y + 92, "Maizal", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("maiz", "Maizal", x + 56, y + 34, 94, label, [group, label]);
-  }
-
-  private drawForest(x: number, y: number) {
-    const group = this.add.container(x, y);
-    for (let i = 0; i < 12; i++) {
-      const px = (i % 4) * 44;
-      const py = Math.floor(i / 4) * 44;
-      group.add(this.add.rectangle(px, py + 22, 12, 42, 0x6b4328));
-      group.add(this.add.triangle(px, py, -25, 30, 0, -28, 25, 30, 0x1c6b3f));
-      group.add(this.add.triangle(px, py - 18, -21, 22, 0, -30, 21, 22, 0x23824a));
-    }
-    const label = this.add.text(x + 62, y + 142, "Bosque", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("madera", "Bosque", x + 66, y + 52, 118, label, [group, label]);
-  }
-
-  private drawStoneOutcrop(x: number, y: number) {
-    const graphics = this.add.graphics();
-    graphics.fillStyle(0xb7b59e, 1);
-    graphics.fillCircle(x, y, 38);
-    graphics.fillStyle(0x8d8b78, 1);
-    graphics.fillCircle(x + 34, y + 22, 30);
-    graphics.fillStyle(0xd5d1b8, 1);
-    graphics.fillCircle(x - 26, y + 28, 24);
-    const label = this.add.text(x + 10, y + 70, "Piedra", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("piedra", "Piedra", x + 8, y + 8, 74, label, [graphics, label]);
-  }
-
-  private drawObsidianDeposit(x: number, y: number) {
-    const graphics = this.add.graphics();
-    graphics.fillStyle(0x17141d, 1);
-    graphics.fillTriangle(x, y - 52, x - 38, y + 42, x + 38, y + 42);
-    graphics.fillStyle(0x372f4d, 1);
-    graphics.fillTriangle(x + 18, y - 28, x - 8, y + 42, x + 44, y + 42);
-    graphics.lineStyle(3, 0x81d8d0, 0.45);
-    graphics.lineBetween(x, y - 42, x - 10, y + 34);
-    const label = this.add.text(x + 4, y + 72, "Obsidiana", labelStyle()).setOrigin(0.5);
-    this.registerResourceNode("obsidiana", "Obsidiana", x + 5, y + 2, 72, label, [graphics, label]);
-  }
-
   private registerResourceNode(
     resource: Resource,
     label: string,
@@ -355,84 +162,6 @@ class DemoScene extends Phaser.Scene {
 
     this.resourceNodes.push(node);
     this.updateResourceNodeLabel(node);
-  }
-
-  private drawCeremonialCenter(x: number, y: number) {
-    const base = this.add.container(x, y);
-    base.add(this.add.rectangle(0, 88, 260, 84, 0xb9a66f).setStrokeStyle(4, 0x735f38));
-    base.add(this.add.rectangle(0, 35, 210, 74, 0xc8b77a).setStrokeStyle(4, 0x735f38));
-    base.add(this.add.rectangle(0, -12, 152, 58, 0xd5c585).setStrokeStyle(4, 0x735f38));
-    base.add(this.add.rectangle(0, -52, 76, 38, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21));
-    base.add(this.add.rectangle(0, 58, 42, 142, 0x8e7445, 0.45));
-    base.add(this.add.text(0, 158, "Centro ceremonial", labelStyle(15)).setOrigin(0.5));
-  }
-
-  private drawHouse(x: number, y: number) {
-    const house = this.add.container(x, y);
-    house.setDepth(2);
-    house.add(this.add.ellipse(0, 38, 92, 24, 0x000000, 0.18));
-    house.add(this.add.rectangle(0, 22, 86, 52, 0xb98a58).setStrokeStyle(4, 0x5a3a24));
-    house.add(this.add.triangle(0, -26, -52, 20, 0, -60, 52, 20, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21));
-    house.add(this.add.rectangle(0, 36, 24, 28, 0x3c281d).setStrokeStyle(2, 0x20140f));
-    house.add(this.add.rectangle(-24, 18, 16, 14, 0xf0c94a, 0.45).setStrokeStyle(2, 0x5a3a24));
-    house.add(this.add.text(0, 82, "Casa", labelStyle(13)).setOrigin(0.5));
-    return house;
-  }
-
-  private drawTelpochcalli(x: number, y: number) {
-    const building = this.add.container(x, y);
-    building.setDepth(2);
-    building.add(this.add.ellipse(0, 54, 144, 28, 0x000000, 0.18));
-    building.add(this.add.rectangle(0, 28, 126, 72, 0x9b6b42).setStrokeStyle(4, 0x4d2c21));
-    building.add(this.add.rectangle(0, -20, 148, 36, 0x7d3f2b).setStrokeStyle(4, 0x351d17));
-    building.add(this.add.triangle(-46, -44, -20, -16, -46, -76, -72, -16, 0xd7bc73).setStrokeStyle(3, 0x4d2c21));
-    building.add(this.add.triangle(46, -44, 72, -16, 46, -76, 20, -16, 0xd7bc73).setStrokeStyle(3, 0x4d2c21));
-    building.add(this.add.rectangle(0, 38, 34, 48, 0x271913).setStrokeStyle(2, 0x120b08));
-    building.add(this.add.rectangle(-36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
-    building.add(this.add.rectangle(36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
-    building.add(this.add.text(0, 104, "Telpochcalli", labelStyle(13)).setOrigin(0.5));
-    return building;
-  }
-
-  private createCamazotz(x: number, y: number): MythicBeast {
-    const container = this.add.container(x, y);
-    container.setDepth(3);
-
-    container.add(this.add.ellipse(0, 48, 150, 26, 0x000000, 0.25));
-    container.add(this.add.triangle(-44, -4, -138, 34, -26, 22, -66, -72, 0x211827).setStrokeStyle(3, 0x5c2745));
-    container.add(this.add.triangle(44, -4, 138, 34, 26, 22, 66, -72, 0x211827).setStrokeStyle(3, 0x5c2745));
-    container.add(this.add.ellipse(0, 8, 70, 86, 0x37213a).setStrokeStyle(4, 0x130d19));
-    container.add(this.add.circle(-18, -20, 8, 0xf5d76e));
-    container.add(this.add.circle(18, -20, 8, 0xf5d76e));
-    container.add(this.add.triangle(0, -2, -8, 14, 0, 30, 8, 14, 0xe8e0c8));
-    container.add(this.add.triangle(-20, -52, -8, -28, -30, -28, -26, -76, 0x2b1d33));
-    container.add(this.add.triangle(20, -52, 8, -28, 30, -28, 26, -76, 0x2b1d33));
-
-    const healthText = this.add.text(0, 92, "Camazotz dormido 90/90", labelStyle(13)).setOrigin(0.5);
-    container.add(healthText);
-
-    return {
-      id: "camazotz-1",
-      name: "Camazotz",
-      x,
-      y,
-      container,
-      health: 90,
-      maxHealth: 90,
-      attack: 10,
-      range: 66,
-      speed: 115,
-      cooldownMs: 1100,
-      attackElapsed: 0,
-      dormant: true,
-      dead: false,
-      reward: {
-        maiz: 100,
-        piedra: 80,
-        obsidiana: 50,
-      },
-      healthText,
-    };
   }
 
   private createUnit(x: number, y: number, data: UnitData) {
@@ -815,8 +544,8 @@ class DemoScene extends Phaser.Scene {
       if (!building) {
         building = this.onlineBuildingData(buildingState);
         building.container = building.kind === "casa"
-          ? this.drawHouse(building.x, building.y)
-          : this.drawTelpochcalli(building.x, building.y);
+          ? drawHouse(this, building.x, building.y)
+          : drawTelpochcalli(this, building.x, building.y);
         this.buildings.push(building);
       }
     });
@@ -992,7 +721,7 @@ class DemoScene extends Phaser.Scene {
       return;
     }
 
-    const cost = this.getBuildingCost(this.buildMode);
+    const cost = getBuildingCost(this.buildMode);
     if (!this.canAfford(cost)) {
       this.cancelBuildMode(`Recursos insuficientes. Necesitas ${this.formatCost(cost)}.`);
       return;
@@ -1021,8 +750,8 @@ class DemoScene extends Phaser.Scene {
     this.spendResources(cost);
     this.populationLimit += building.populationBonus;
     building.container = building.kind === "casa"
-      ? this.drawHouse(x, y)
-      : this.drawTelpochcalli(x, y);
+      ? drawHouse(this, x, y)
+      : drawTelpochcalli(this, x, y);
     this.buildings.push(building);
     this.updateHudResources();
     const extra = building.kind === "casa"
@@ -1340,11 +1069,6 @@ class DemoScene extends Phaser.Scene {
     return !this.buildings.some((building) => {
       return Phaser.Math.Distance.Between(x, y, building.x, building.y) < buildingRadius;
     });
-  }
-
-  private getBuildingCost(kind: BuildingKind): Partial<Record<Resource, number>> {
-    if (kind === "casa") return { madera: HOUSE_WOOD_COST };
-    return TELPOCHCALLI_COST;
   }
 
   private canAfford(cost: Partial<Record<Resource, number>>) {
@@ -1812,13 +1536,3 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 new Phaser.Game(config);
-
-function labelStyle(fontSize = 14): Phaser.Types.GameObjects.Text.TextStyle {
-  return {
-    fontFamily: "system-ui, sans-serif",
-    fontSize: `${fontSize}px`,
-    color: "#fff4cf",
-    stroke: "#1d281e",
-    strokeThickness: 4,
-  };
-}

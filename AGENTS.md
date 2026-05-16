@@ -47,6 +47,17 @@ El proyecto esta en fase de prototipo. Prioriza:
 - No hagas refactors amplios mientras implementas una feature pequena.
 - No mezcles cambios de gameplay, arte y arquitectura si pueden ir en commits separados.
 
+## Modularidad
+
+- Evita que `apps/client/src/main.ts` vuelva a convertirse en un archivo monolitico.
+- Coloca tipos del cliente en `apps/client/src/types.ts`.
+- Coloca constantes, costos, estadisticas y reglas puras del cliente en `apps/client/src/rules.ts`.
+- Coloca dibujo Phaser reutilizable o placeholder art en `apps/client/src/art.ts`.
+- Si una regla debe ser autoritativa para online, no la dupliques solo en cliente: muévela o compártela desde `packages/shared`.
+- Mantén `main.ts` enfocado en orquestar la escena: input, ciclo de update, sincronizacion online y coordinacion entre sistemas.
+- Cuando un bloque pase de ~80-120 lineas o se pueda nombrar claramente, considera extraerlo a un modulo pequeno.
+- Prefiere funciones puras y exports nombrados antes que clases utilitarias globales.
+
 ## Verificacion
 
 Antes de cerrar un cambio de codigo, corre:
@@ -98,4 +109,3 @@ Cuando termines una tarea, reporta:
 - Que comandos corriste.
 - Si algo no se pudo verificar.
 - El hash del commit si subiste cambios.
-

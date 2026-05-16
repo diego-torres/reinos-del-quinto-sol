@@ -29,6 +29,16 @@ You are collaborating on **Reinos del Quinto Sol**, an open source online RTS in
 - Keep commits and changes focused.
 - Do not perform broad refactors while implementing a small feature.
 
+## Modularity Rules
+
+- Keep `apps/client/src/main.ts` as scene orchestration, not a catch-all file.
+- Put client-side TypeScript contracts in `apps/client/src/types.ts`.
+- Put client constants, costs, stats, and pure rules in `apps/client/src/rules.ts`.
+- Put reusable Phaser drawing and placeholder-art helpers in `apps/client/src/art.ts`.
+- If client and server both need the same authoritative rule, move it to `packages/shared` or expose it from shared code instead of copying it.
+- Extract named modules when a block grows beyond roughly 80-120 lines or has a clear responsibility.
+- Prefer small named functions and explicit exports over broad utility classes.
+
 ## Frontend / Game Rules
 
 - Phaser is the gameplay renderer.
@@ -76,4 +86,3 @@ npm run dev --workspace @reinos/client -- --host 127.0.0.1 --port 5173
 - Never commit secrets, tokens, private keys, or `.env` files.
 - Do not use assets with unclear licensing.
 - Do not rewrite Git history or revert others' work without explicit permission.
-
