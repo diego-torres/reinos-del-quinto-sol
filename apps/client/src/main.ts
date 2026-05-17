@@ -59,6 +59,12 @@ import mexicaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/mexica
 import tlaxcaltecaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/tlaxcalteca.png";
 import incaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/inca.png";
 import mayaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/maya.png";
+import ambientMilpaSrc from "@repo-assets/audio/milpa_al_amanecer_loop.wav";
+import battleCanteraSrc from "@repo-assets/audio/cantera_y_fuego_battle_loop.wav";
+
+const AUDIO_MILPA_LOOP_KEY = "milpa-al-amanecer";
+const AUDIO_BATTLE_LOOP_KEY = "cantera-y-fuego-battle";
+const MUSIC_VOLUME = 0.42;
 
 const CEREMONIAL_CENTER_LABELS: Record<CeremonialCenterCulture, string> = {
   mexica: "Mexica",
@@ -107,6 +113,10 @@ class DemoScene extends Phaser.Scene {
   private culturePickerRoot?: HTMLDivElement;
   private onlineState?: OnlineGameState;
   private onlineMode = false;
+  private milpaMusic?: Phaser.Sound.BaseSound;
+  private battleMusic?: Phaser.Sound.BaseSound;
+  /** Which loop should be audible; kept in sync with `refreshBackgroundMusicState`. */
+  private activeMusicMode: "milpa" | "battle" = "milpa";
   private initializedOnlineUnits = false;
   private population = 2;
   private populationLimit = 5;
@@ -128,6 +138,8 @@ class DemoScene extends Phaser.Scene {
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaCeremonialAsset);
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.inca, incaCeremonialAsset);
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.maya, mayaCeremonialAsset);
+    this.load.audio(AUDIO_MILPA_LOOP_KEY, ambientMilpaSrc);
+    this.load.audio(AUDIO_BATTLE_LOOP_KEY, battleCanteraSrc);
   }
 
   create() {
@@ -204,6 +216,18 @@ class DemoScene extends Phaser.Scene {
     });
 
     this.input.mouse?.disableContextMenu();
+
+    this.milpaMusic = this.sound.add(AUDIO_MILPA_LOOP_KEY, { loop: true, volume: MUSIC_VOLUME });
+    this.battleMusic = this.sound.add(AUDIO_BATTLE_LOOP_KEY, { loop: true, volume: MUSIC_VOLUME });
+    this.ensureMusicLoop(this.milpaMusic);
+    this.ensureMusicLoop(this.battleMusic);
+    this.attachMusicLoopRestart(this.milpaMusic, "milpa");
+    this.attachMusicLoopRestart(this.battleMusic, "battle");
+    this.milpaMusic.play({ loop: true, volume: MUSIC_VOLUME });
+    this.input.once("pointerdown", () => {
+      this.sound.unlock();
+    });
+
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.wasd = this.input.keyboard?.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
     this.input.keyboard?.on("keydown-H", () => this.startHousePlacement());
@@ -218,6 +242,67 @@ class DemoScene extends Phaser.Scene {
     this.updateCamera(delta);
     this.updateUnits(delta);
     this.updateBeast(delta);
+    this.refreshBackgroundMusicState();
+  }
+
+  /** Música de exploración / economía vs combate activo (bestias offline o asalto a centro online). */
+  private shouldPlayBattleMusic(): boolean {
+    if (this.onlineMode && this.onlineState) {
+      const attackingCenter = this.onlineState.units.some(
+        (u) => u.workState === "attacking" && Boolean(u.attackTargetId),
+      );
+      if (attackingCenter) return true;
+    }
+
+    for (const beast of this.mythicBeasts) {
+      if (beast.dead) continue;
+      if (!beast.dormant) return true;
+    }
+
+    for (const unit of this.units) {
+      const beastTarget = unit.getData("attackTarget") as MythicBeast | undefined;
+      if (beastTarget && !beastTarget.dead) return true;
+    }
+
+    return false;
+  }
+
+  private refreshBackgroundMusicState() {
+    const wantBattle = this.shouldPlayBattleMusic();
+    const next: "milpa" | "battle" = wantBattle ? "battle" : "milpa";
+    if (next === this.activeMusicMode) return;
+    this.activeMusicMode = next;
+
+    if (wantBattle) {
+      this.milpaMusic?.pause();
+      this.playMusicLoop(this.battleMusic);
+    } else {
+      this.battleMusic?.pause();
+      this.playMusicLoop(this.milpaMusic);
+    }
+  }
+
+  /** Phaser documenta `setLoop(true)` explícito; el flag en el config no siempre basta para el buffer en bucle. */
+  private ensureMusicLoop(track: Phaser.Sound.BaseSound | undefined) {
+    if (!track) return;
+    (track as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound).setLoop(true);
+  }
+
+  /** Si el motor no enlaza el loop (p. ej. WAV largo), volvemos a lanzar solo mientras el modo siga activo. */
+  private attachMusicLoopRestart(track: Phaser.Sound.BaseSound, mode: "milpa" | "battle") {
+    track.on(Phaser.Sound.Events.COMPLETE, () => {
+      if (this.activeMusicMode !== mode) return;
+      this.ensureMusicLoop(track);
+      track.play({ loop: true, volume: MUSIC_VOLUME });
+    });
+  }
+
+  private playMusicLoop(track: Phaser.Sound.BaseSound | undefined) {
+    if (!track || track.isPlaying) return;
+    this.ensureMusicLoop(track);
+    const web = track as Phaser.Sound.WebAudioSound;
+    if (web.isPaused) web.resume();
+    else web.play({ loop: true, volume: MUSIC_VOLUME });
   }
 
   private registerResourceNode(
