@@ -133,7 +133,7 @@ export function moveSelectedUnit(scene: GameScene, x: number, y: number): void {
   scene.setStatus(`${unitData.label} avanzando a ${Math.round(x)}, ${Math.round(y)}.`);
 
   scene.targetMarkers.get(unitData.id)?.destroy();
-  const marker = scene.add.circle(x, y, 10, 0xf5d76e, 0.85).setStrokeStyle(2, 0x2b201a);
+  const marker = scene.add.circle(x, y, 10, 0xf5d76e, 0.85).setStrokeStyle(2, 0x2b201a).setDepth(8);
   scene.targetMarkers.set(unitData.id, marker);
   scene.tweens.add({
     targets: marker,
@@ -156,7 +156,7 @@ export function sendUnitToGather(scene: GameScene, unit: Phaser.GameObjects.Cont
   scene.setStatus(`${unitData.label} va hacia ${resourceNode.label.toLowerCase()} para recolectar.`);
 
   scene.targetMarkers.get(unitData.id)?.destroy();
-  const marker = scene.add.circle(resourceNode.x, resourceNode.y, 12, 0x89d26a, 0.85).setStrokeStyle(2, 0x1d281e);
+  const marker = scene.add.circle(resourceNode.x, resourceNode.y, 12, 0x89d26a, 0.85).setStrokeStyle(2, 0x1d281e).setDepth(8);
   scene.targetMarkers.set(unitData.id, marker);
   scene.tweens.add({
     targets: marker,
@@ -281,6 +281,7 @@ export function createUnit(scene: GameScene, x: number, y: number, data: UnitDat
     }
   });
 
+  unit.setDepth(10);
   scene.units.push(unit);
   return unit;
 }
@@ -314,7 +315,7 @@ export function selectUnit(scene: GameScene, unit: Phaser.GameObjects.Container)
   scene.selectionRing?.destroy();
   scene.selectionRing = scene.add.ellipse(unit.x, unit.y + 8, 66, 40);
   scene.selectionRing.setStrokeStyle(3, 0xf5d76e, 0.95);
-  scene.selectionRing.setDepth(5);
+  scene.selectionRing.setDepth(8);
   unit.setDepth(10);
 
   const unitData = unit.getData("unit") as UnitData;

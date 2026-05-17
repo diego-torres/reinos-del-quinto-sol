@@ -30,6 +30,7 @@ import { depleteResourceNode as depleteResourceNodeEconomy, registerResourceNode
 import { syncDomState as syncSceneStateToDom } from "./domSync.js";
 import { installDebugApi } from "./debugApi.js";
 import { bindGameplayInput } from "./inputBindings.js";
+import { redrawExplorationFogIfDirty, revealFromLocalPlayerUnits } from "./explorationFog.js";
 import { bootstrapOfflineStartingArea } from "./mapInit.js";
 import { preloadMusicAssets, refreshBackgroundMusicState, startBackgroundMusic, type BackgroundMusicHost } from "./music.js";
 import { connectToGameServer } from "./server.js";
@@ -137,6 +138,8 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
   update(_time: number, delta: number): void {
     panCamera(this, delta);
     updateUnitsModule(this, delta);
+    revealFromLocalPlayerUnits(this);
+    redrawExplorationFogIfDirty(this);
     updateBeast(this, delta);
     refreshBackgroundMusicState(this);
   }

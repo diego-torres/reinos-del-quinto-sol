@@ -5,10 +5,17 @@ import {
 import { createCamazotz, drawCeremonialCenter, drawResourceClusters, drawTerrain } from "../art.js";
 import { CEREMONIAL_CENTER, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
 import { createVillagerSkin } from "../villagerAssets.js";
+import {
+  createExplorationFog,
+  redrawExplorationFogIfDirty,
+  revealFromLocalPlayerUnits,
+  revealOwnedCeremonialAreasForLocalPlayer,
+} from "./explorationFog.js";
 import type { GameScene } from "./gameScene.js";
 
 export function bootstrapOfflineStartingArea(scene: GameScene): void {
   drawTerrain(scene);
+  createExplorationFog(scene);
   drawResourceClusters(scene, scene.registerResourceNode.bind(scene));
 
   const mapMargin = 480;
@@ -57,4 +64,8 @@ export function bootstrapOfflineStartingArea(scene: GameScene): void {
 
   scene.focusCameraOnWorldPoint(cx, cy);
   scene.selectUnit(aldeano);
+
+  revealOwnedCeremonialAreasForLocalPlayer(scene);
+  revealFromLocalPlayerUnits(scene);
+  redrawExplorationFogIfDirty(scene);
 }

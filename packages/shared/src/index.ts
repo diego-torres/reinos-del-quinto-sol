@@ -11,6 +11,16 @@ export const ONLINE_WORLD = {
 
 export type OnlineUnitKind = "aldeano" | "guerrero";
 
+/**
+ * Radio en píxeles del mundo de revelado por exploración (niebla persistente propia).
+ * Valores más altos = mejor exploración; aldeano modesto, guerrero rango de patrulla.
+ * Cliente (y futuro servidor autoritativo) deben usar la misma tabla.
+ */
+export const UNIT_EXPLORATION_VISION_RADIUS_PX: Record<OnlineUnitKind, number> = {
+  aldeano: 250,
+  guerrero: 400,
+};
+
 export type OnlineBuildingKind = "casa" | "telpochcalli";
 
 export type OnlineUnitState = {
