@@ -1,10 +1,9 @@
 import Phaser from "phaser";
-import type { CeremonialCenterCulture, Resource } from "@reinos/shared";
-import { normalizeCeremonialCenterCulture } from "@reinos/shared";
+import type { CeremonialCenterCulture, OnlineResourceNodeState, Resource } from "@reinos/shared";
+import { createInitialResourceNodes, normalizeCeremonialCenterCulture } from "@reinos/shared";
 import type { MythicBeast } from "./types.js";
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
 
-export const WATER_TILE_KEY = "terrain-water-tile";
 export const HOUSE_ASSET_KEY = "building-house-flat";
 export const VILLAGER_ASSET_KEY = "unit-villager-flat";
 
@@ -27,6 +26,7 @@ function resolveCeremonialCenterTextureKey(scene: Phaser.Scene, culture: Ceremon
 }
 
 type RegisterResourceNode = (
+  id: string,
   resource: Resource,
   label: string,
   x: number,
@@ -66,134 +66,15 @@ export function drawTerrain(scene: Phaser.Scene) {
   for (let y = 0; y <= WORLD_HEIGHT; y += TILE_SIZE) {
     graphics.lineBetween(0, y, WORLD_WIDTH, y);
   }
-
-  drawWaterBands(scene);
-  drawPlazasAndCauseways(scene);
-}
-
-function drawWaterBands(scene: Phaser.Scene) {
-  if (scene.textures.exists(WATER_TILE_KEY)) {
-    drawWaterTileBands(scene);
-    return;
-  }
-
-  const water = scene.add.graphics();
-  water.lineStyle(86, 0x27a7b8, 0.94);
-  water.beginPath();
-  water.moveTo(-80, 1070);
-  water.lineTo(330, 990);
-  water.lineTo(730, 1084);
-  water.lineTo(1165, 972);
-  water.lineTo(1640, 1032);
-  water.lineTo(2480, 865);
-  water.strokePath();
-
-  water.lineStyle(28, 0x146c78, 0.42);
-  water.strokePath();
-
-  water.lineStyle(54, 0x27a7b8, 0.86);
-  water.beginPath();
-  water.moveTo(1760, -60);
-  water.lineTo(1650, 230);
-  water.lineTo(1730, 515);
-  water.lineTo(1660, 820);
-  water.lineTo(1770, 1130);
-  water.lineTo(1700, 1660);
-  water.strokePath();
-
-  water.lineStyle(14, 0xd8c99a, 0.28);
-  water.strokePath();
-}
-
-function drawWaterTileBands(scene: Phaser.Scene) {
-  drawWaterPath(scene, 86, [
-    [-80, 1070],
-    [330, 990],
-    [730, 1084],
-    [1165, 972],
-    [1640, 1032],
-    [2480, 865],
-  ]);
-
-  drawWaterPath(scene, 54, [
-    [1760, -60],
-    [1650, 230],
-    [1730, 515],
-    [1660, 820],
-    [1770, 1130],
-    [1700, 1660],
-  ]);
-}
-
-function drawWaterPath(scene: Phaser.Scene, width: number, points: Array<[number, number]>) {
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const [x1, y1] = points[index];
-    const [x2, y2] = points[index + 1];
-    drawWaterSegment(scene, x1, y1, x2, y2, width);
-  }
-}
-
-function drawWaterSegment(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number, width: number) {
-  const length = Phaser.Math.Distance.Between(x1, y1, x2, y2) + width * 0.45;
-  const angle = Phaser.Math.Angle.Between(x1, y1, x2, y2);
-  const tile = scene.add.tileSprite((x1 + x2) / 2, (y1 + y2) / 2, length, width, WATER_TILE_KEY);
-  tile.setOrigin(0.5);
-  tile.setRotation(angle);
-  tile.setDepth(0);
-  tile.setTileScale(0.72, 0.72);
-  tile.setAlpha(width > 60 ? 0.96 : 0.88);
-}
-
-function drawPlazasAndCauseways(scene: Phaser.Scene) {
-  const civic = scene.add.graphics();
-
-  civic.fillStyle(0xd8c99a, 0.92);
-  civic.fillRect(350, 260, 520, 380);
-  civic.fillRect(250, 690, 500, 230);
-  civic.fillRect(970, 470, 430, 260);
-
-  civic.fillStyle(0xcdbb83, 0.92);
-  civic.fillRect(430, 410, 1120, 74);
-  civic.fillRect(505, 225, 78, 930);
-  civic.fillRect(760, 675, 1150, 68);
-
-  civic.lineStyle(4, 0x743d2e, 0.34);
-  civic.strokeRect(350, 260, 520, 380);
-  civic.strokeRect(250, 690, 500, 230);
-  civic.strokeRect(970, 470, 430, 260);
-
-  civic.lineStyle(2, 0xfff4cf, 0.22);
-  for (let x = 365; x < 860; x += 64) {
-    civic.lineBetween(x, 260, x, 640);
-  }
-  for (let y = 285; y < 630; y += 64) {
-    civic.lineBetween(350, y, 870, y);
-  }
 }
 
 export function drawResourceClusters(scene: Phaser.Scene, registerResourceNode: RegisterResourceNode) {
-  const clusters: Array<() => void> = [
-    () => drawMaizeField(scene, 620, 520, registerResourceNode),
-    () => drawMaizeField(scene, 280, 780, registerResourceNode),
-    () => drawMaizeField(scene, 1080, 560, registerResourceNode),
-    () => drawForest(scene, 1360, 350, registerResourceNode),
-    () => drawForest(scene, 1760, 740, registerResourceNode),
-    () => drawStoneOutcrop(scene, 690, 1030, registerResourceNode),
-    () => drawStoneOutcrop(scene, 1650, 1120, registerResourceNode),
-    () => drawObsidianDeposit(scene, 1120, 1120, registerResourceNode),
-    () => drawObsidianDeposit(scene, 2050, 430, registerResourceNode),
-    () => drawMaizeField(scene, WORLD_WIDTH - 732, WORLD_HEIGHT - 588, registerResourceNode),
-    () => drawMaizeField(scene, WORLD_WIDTH - 392, WORLD_HEIGHT - 848, registerResourceNode),
-    () => drawMaizeField(scene, WORLD_WIDTH - 1192, WORLD_HEIGHT - 628, registerResourceNode),
-    () => drawForest(scene, WORLD_WIDTH - 1492, WORLD_HEIGHT - 454, registerResourceNode),
-    () => drawForest(scene, WORLD_WIDTH - 1892, WORLD_HEIGHT - 844, registerResourceNode),
-    () => drawStoneOutcrop(scene, WORLD_WIDTH - 706, WORLD_HEIGHT - 1046, registerResourceNode),
-    () => drawStoneOutcrop(scene, WORLD_WIDTH - 1666, WORLD_HEIGHT - 1136, registerResourceNode),
-    () => drawObsidianDeposit(scene, WORLD_WIDTH - 1130, WORLD_HEIGHT - 1124, registerResourceNode),
-    () => drawObsidianDeposit(scene, WORLD_WIDTH - 2060, WORLD_HEIGHT - 434, registerResourceNode),
-  ];
-
-  clusters.forEach((drawCluster) => drawCluster());
+  for (const node of createInitialResourceNodes()) {
+    if (node.resource === "maiz") drawMaizeField(scene, node, registerResourceNode);
+    else if (node.resource === "madera") drawForest(scene, node, registerResourceNode);
+    else if (node.resource === "piedra") drawStoneOutcrop(scene, node, registerResourceNode);
+    else drawObsidianDeposit(scene, node, registerResourceNode);
+  }
 }
 
 export function drawCeremonialCenter(scene: Phaser.Scene, x: number, y: number, culture: CeremonialCenterCulture) {
@@ -255,7 +136,14 @@ export function drawTelpochcalli(scene: Phaser.Scene, x: number, y: number) {
   return building;
 }
 
-export function createCamazotz(scene: Phaser.Scene, x: number, y: number): MythicBeast {
+export function createCamazotz(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  options?: { id?: string; name?: string },
+): MythicBeast {
+  const id = options?.id ?? "camazotz-1";
+  const name = options?.name ?? "Camazotz";
   const container = scene.add.container(x, y);
   container.setDepth(3);
 
@@ -269,12 +157,12 @@ export function createCamazotz(scene: Phaser.Scene, x: number, y: number): Mythi
   container.add(scene.add.triangle(-20, -52, -8, -28, -30, -28, -26, -76, 0x2b1d33));
   container.add(scene.add.triangle(20, -52, 8, -28, 30, -28, 26, -76, 0x2b1d33));
 
-  const healthText = scene.add.text(0, 92, "Camazotz dormido 90/90", labelStyle(13)).setOrigin(0.5);
+  const healthText = scene.add.text(0, 92, `${name} dormido 90/90`, labelStyle(13)).setOrigin(0.5);
   container.add(healthText);
 
   return {
-    id: "camazotz-1",
-    name: "Camazotz",
+    id,
+    name,
     x,
     y,
     container,
@@ -296,7 +184,9 @@ export function createCamazotz(scene: Phaser.Scene, x: number, y: number): Mythi
   };
 }
 
-function drawMaizeField(scene: Phaser.Scene, x: number, y: number, registerResourceNode: RegisterResourceNode) {
+function drawMaizeField(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {
+  const x = node.x - 56;
+  const y = node.y - 34;
   const group = scene.add.container(x, y);
   for (let i = 0; i < 18; i++) {
     const px = (i % 6) * 24;
@@ -305,11 +195,13 @@ function drawMaizeField(scene: Phaser.Scene, x: number, y: number, registerResou
     const cob = scene.add.ellipse(px + 5, py - 4, 11, 22, 0xf0c94a);
     group.add([stalk, cob]);
   }
-  const label = scene.add.text(x - 8, y + 92, "Maizal", labelStyle()).setOrigin(0.5);
-  registerResourceNode("maiz", "Maizal", x + 56, y + 34, 94, label, [group, label]);
+  const label = scene.add.text(x - 8, y + 92, node.label, labelStyle()).setOrigin(0.5);
+  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [group, label]);
 }
 
-function drawForest(scene: Phaser.Scene, x: number, y: number, registerResourceNode: RegisterResourceNode) {
+function drawForest(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {
+  const x = node.x - 66;
+  const y = node.y - 52;
   const group = scene.add.container(x, y);
   for (let i = 0; i < 12; i++) {
     const px = (i % 4) * 44;
@@ -318,11 +210,13 @@ function drawForest(scene: Phaser.Scene, x: number, y: number, registerResourceN
     group.add(scene.add.triangle(px, py, -25, 30, 0, -28, 25, 30, 0x1c6b3f));
     group.add(scene.add.triangle(px, py - 18, -21, 22, 0, -30, 21, 22, 0x23824a));
   }
-  const label = scene.add.text(x + 62, y + 142, "Bosque", labelStyle()).setOrigin(0.5);
-  registerResourceNode("madera", "Bosque", x + 66, y + 52, 118, label, [group, label]);
+  const label = scene.add.text(x + 62, y + 142, node.label, labelStyle()).setOrigin(0.5);
+  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [group, label]);
 }
 
-function drawStoneOutcrop(scene: Phaser.Scene, x: number, y: number, registerResourceNode: RegisterResourceNode) {
+function drawStoneOutcrop(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {
+  const x = node.x - 8;
+  const y = node.y - 8;
   const graphics = scene.add.graphics();
   graphics.fillStyle(0xb7b59e, 1);
   graphics.fillCircle(x, y, 38);
@@ -330,11 +224,13 @@ function drawStoneOutcrop(scene: Phaser.Scene, x: number, y: number, registerRes
   graphics.fillCircle(x + 34, y + 22, 30);
   graphics.fillStyle(0xd5d1b8, 1);
   graphics.fillCircle(x - 26, y + 28, 24);
-  const label = scene.add.text(x + 10, y + 70, "Piedra", labelStyle()).setOrigin(0.5);
-  registerResourceNode("piedra", "Piedra", x + 8, y + 8, 74, label, [graphics, label]);
+  const label = scene.add.text(x + 10, y + 70, node.label, labelStyle()).setOrigin(0.5);
+  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [graphics, label]);
 }
 
-function drawObsidianDeposit(scene: Phaser.Scene, x: number, y: number, registerResourceNode: RegisterResourceNode) {
+function drawObsidianDeposit(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {
+  const x = node.x - 5;
+  const y = node.y - 2;
   const graphics = scene.add.graphics();
   graphics.fillStyle(0x17141d, 1);
   graphics.fillTriangle(x, y - 52, x - 38, y + 42, x + 38, y + 42);
@@ -342,6 +238,6 @@ function drawObsidianDeposit(scene: Phaser.Scene, x: number, y: number, register
   graphics.fillTriangle(x + 18, y - 28, x - 8, y + 42, x + 44, y + 42);
   graphics.lineStyle(3, 0x81d8d0, 0.45);
   graphics.lineBetween(x, y - 42, x - 10, y + 34);
-  const label = scene.add.text(x + 4, y + 72, "Obsidiana", labelStyle()).setOrigin(0.5);
-  registerResourceNode("obsidiana", "Obsidiana", x + 5, y + 2, 72, label, [graphics, label]);
+  const label = scene.add.text(x + 4, y + 72, node.label, labelStyle()).setOrigin(0.5);
+  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [graphics, label]);
 }

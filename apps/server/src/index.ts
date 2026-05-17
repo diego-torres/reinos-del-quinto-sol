@@ -3,6 +3,7 @@ import {
   GAME_TITLE,
   ONLINE_WORLD,
   RESOURCES,
+  createInitialResourceNodes,
   normalizeCeremonialCenterCulture,
   type CeremonialCenterCulture,
   type ClientMessage,
@@ -25,7 +26,7 @@ const state: OnlineGameState = {
   tick: 0,
   players: [],
   units: [],
-  resourceNodes: createResourceNodes(),
+  resourceNodes: createInitialResourceNodes(),
   buildings: [],
   ceremonialCenters: [],
 };
@@ -133,7 +134,7 @@ function ensureCeremonialCenter(playerId: string, culture: CeremonialCenterCultu
   if (state.ceremonialCenters.some((center) => center.ownerId === playerId)) return;
 
   const slot = state.players.find((player) => player.id === playerId)?.slot ?? 1;
-  const position = getStartingCenterPosition(slot);
+  const position = pickCeremonialCenterPosition(slot);
   const resolvedCulture = normalizeCeremonialCenterCulture(culture);
   state.ceremonialCenters.push({
     id: `${playerId}-centro-ceremonial`,
@@ -436,6 +437,28 @@ function getPlayerCenter(playerId: string) {
   return state.ceremonialCenters.find((center) => center.ownerId === playerId);
 }
 
+function pickCeremonialCenterPosition(slot: number) {
+  const margin = 420;
+  const minSeparation = 880;
+  const resourceClearance = 200;
+
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const x = margin + Math.random() * (ONLINE_WORLD.width - margin * 2);
+    const y = margin + Math.random() * (ONLINE_WORLD.height - margin * 2);
+    const farFromCenters = state.ceremonialCenters.every(
+      (c) => Math.hypot(x - c.x, y - c.y) >= minSeparation,
+    );
+    const farFromResources = state.resourceNodes.every(
+      (n) => Math.hypot(x - n.x, y - n.y) >= n.radius + resourceClearance,
+    );
+    if (farFromCenters && farFromResources) {
+      return { x: Math.round(x), y: Math.round(y) };
+    }
+  }
+
+  return getStartingCenterPosition(slot);
+}
+
 function getStartingCenterPosition(slot: number) {
   if (slot === 1) return { x: 720, y: 680 };
   if (slot === 2) return { x: ONLINE_WORLD.width - 720, y: ONLINE_WORLD.height - 680 };
@@ -444,49 +467,6 @@ function getStartingCenterPosition(slot: number) {
   return {
     x: ONLINE_WORLD.width / 2 + Math.cos(angle) * 2200,
     y: ONLINE_WORLD.height / 2 + Math.sin(angle) * 1400,
-  };
-}
-
-function createResourceNodes(): OnlineResourceNodeState[] {
-  return [
-    createResourceNode("maiz-1", "maiz", "Maizal", 676, 554, 94),
-    createResourceNode("maiz-2", "maiz", "Maizal", 336, 814, 94),
-    createResourceNode("maiz-3", "maiz", "Maizal", 1136, 594, 94),
-    createResourceNode("madera-4", "madera", "Bosque", 1426, 402, 118),
-    createResourceNode("madera-5", "madera", "Bosque", 1826, 792, 118),
-    createResourceNode("piedra-6", "piedra", "Piedra", 698, 1038, 74),
-    createResourceNode("piedra-7", "piedra", "Piedra", 1658, 1128, 74),
-    createResourceNode("obsidiana-8", "obsidiana", "Obsidiana", 1125, 1122, 72),
-    createResourceNode("obsidiana-9", "obsidiana", "Obsidiana", 2055, 432, 72),
-    createResourceNode("maiz-10", "maiz", "Maizal", ONLINE_WORLD.width - 676, ONLINE_WORLD.height - 554, 94),
-    createResourceNode("maiz-11", "maiz", "Maizal", ONLINE_WORLD.width - 336, ONLINE_WORLD.height - 814, 94),
-    createResourceNode("maiz-12", "maiz", "Maizal", ONLINE_WORLD.width - 1136, ONLINE_WORLD.height - 594, 94),
-    createResourceNode("madera-13", "madera", "Bosque", ONLINE_WORLD.width - 1426, ONLINE_WORLD.height - 402, 118),
-    createResourceNode("madera-14", "madera", "Bosque", ONLINE_WORLD.width - 1826, ONLINE_WORLD.height - 792, 118),
-    createResourceNode("piedra-15", "piedra", "Piedra", ONLINE_WORLD.width - 698, ONLINE_WORLD.height - 1038, 74),
-    createResourceNode("piedra-16", "piedra", "Piedra", ONLINE_WORLD.width - 1658, ONLINE_WORLD.height - 1128, 74),
-    createResourceNode("obsidiana-17", "obsidiana", "Obsidiana", ONLINE_WORLD.width - 1125, ONLINE_WORLD.height - 1122, 72),
-    createResourceNode("obsidiana-18", "obsidiana", "Obsidiana", ONLINE_WORLD.width - 2055, ONLINE_WORLD.height - 432, 72),
-  ];
-}
-
-function createResourceNode(
-  id: string,
-  resource: Resource,
-  label: string,
-  x: number,
-  y: number,
-  radius: number,
-): OnlineResourceNodeState {
-  return {
-    id,
-    resource,
-    label,
-    x,
-    y,
-    radius,
-    amount: 500,
-    depleted: false,
   };
 }
 

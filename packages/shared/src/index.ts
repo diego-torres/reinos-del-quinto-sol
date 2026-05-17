@@ -96,6 +96,63 @@ export type OnlineGameState = {
   winnerId?: string;
 };
 
+const INITIAL_RESOURCE_NODE_AMOUNT = 500;
+
+/** Blueprint row-major on a 6x3 grid covering the whole map (ids stable for cliente/servidor). */
+const INITIAL_RESOURCE_BLUEPRINTS: Array<Pick<OnlineResourceNodeState, "id" | "resource" | "label" | "radius">> = [
+  { id: "maiz-1", resource: "maiz", label: "Maizal", radius: 94 },
+  { id: "maiz-2", resource: "maiz", label: "Maizal", radius: 94 },
+  { id: "maiz-3", resource: "maiz", label: "Maizal", radius: 94 },
+  { id: "madera-4", resource: "madera", label: "Bosque", radius: 118 },
+  { id: "madera-5", resource: "madera", label: "Bosque", radius: 118 },
+  { id: "piedra-6", resource: "piedra", label: "Piedra", radius: 74 },
+  { id: "piedra-7", resource: "piedra", label: "Piedra", radius: 74 },
+  { id: "obsidiana-8", resource: "obsidiana", label: "Obsidiana", radius: 72 },
+  { id: "obsidiana-9", resource: "obsidiana", label: "Obsidiana", radius: 72 },
+  { id: "maiz-10", resource: "maiz", label: "Maizal", radius: 94 },
+  { id: "maiz-11", resource: "maiz", label: "Maizal", radius: 94 },
+  { id: "maiz-12", resource: "maiz", label: "Maizal", radius: 94 },
+  { id: "madera-13", resource: "madera", label: "Bosque", radius: 118 },
+  { id: "madera-14", resource: "madera", label: "Bosque", radius: 118 },
+  { id: "piedra-15", resource: "piedra", label: "Piedra", radius: 74 },
+  { id: "piedra-16", resource: "piedra", label: "Piedra", radius: 74 },
+  { id: "obsidiana-17", resource: "obsidiana", label: "Obsidiana", radius: 72 },
+  { id: "obsidiana-18", resource: "obsidiana", label: "Obsidiana", radius: 72 },
+];
+
+/**
+ * Nodos de recurso repartidos en una malla sobre todo el mapa (mismo orden e ids en cliente y servidor).
+ */
+export function createInitialResourceNodes(): OnlineResourceNodeState[] {
+  const pad = 380;
+  const innerW = ONLINE_WORLD.width - pad * 2;
+  const innerH = ONLINE_WORLD.height - pad * 2;
+  const cols = 6;
+  const rows = 3;
+
+  if (INITIAL_RESOURCE_BLUEPRINTS.length !== cols * rows) {
+    throw new Error("INITIAL_RESOURCE_BLUEPRINTS debe tener exactamente 18 entradas");
+  }
+
+  return INITIAL_RESOURCE_BLUEPRINTS.map((bp, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const cx = pad + ((col + 0.5) / cols) * innerW;
+    const cy = pad + ((row + 0.5) / rows) * innerH;
+    const jitter = 71;
+    const jx = Math.round(((index * 47) % jitter) - jitter / 2);
+    const jy = Math.round(((index * 89) % jitter) - jitter / 2);
+
+    return {
+      ...bp,
+      x: Math.round(cx + jx),
+      y: Math.round(cy + jy),
+      amount: INITIAL_RESOURCE_NODE_AMOUNT,
+      depleted: false,
+    };
+  });
+}
+
 export type ServerMessage =
   | {
       type: "welcome";

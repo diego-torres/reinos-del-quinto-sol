@@ -25,7 +25,6 @@ import {
   HOUSE_ASSET_KEY,
   labelStyle,
   VILLAGER_ASSET_KEY,
-  WATER_TILE_KEY,
 } from "./art.js";
 import {
   CARRY_CAPACITY,
@@ -91,7 +90,15 @@ class DemoScene extends Phaser.Scene {
   private buildings: BuildingData[] = [];
   private ceremonialCenters: CeremonialCenterData[] = [];
   private units: Phaser.GameObjects.Container[] = [];
-  private camazotz?: MythicBeast;
+  private mythicBeasts: MythicBeast[] = [];
+  /** Centro ceremonial local mientras no exista uno del servidor para este jugador. */
+  private offlineDemoCenter?: {
+    x: number;
+    y: number;
+    radius: number;
+    container: Phaser.GameObjects.Container;
+  };
+  private didInitialCameraFocus = false;
   private nextUnitId = 2;
   private isTrainingVillager = false;
   private isTrainingWarrior = false;
@@ -115,7 +122,6 @@ class DemoScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image(WATER_TILE_KEY, "/assets/terrain/water-tile.svg");
     this.load.image(HOUSE_ASSET_KEY, "/assets/buildings/house-flat.svg");
     this.load.image(VILLAGER_ASSET_KEY, "/assets/units/villager-flat.svg");
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.mexica, mexicaCeremonialAsset);
@@ -133,9 +139,32 @@ class DemoScene extends Phaser.Scene {
 
     drawTerrain(this);
     drawResourceClusters(this, this.registerResourceNode.bind(this));
-    this.camazotz = createCamazotz(this, 1010, 780);
 
-    const aldeano = this.createUnit(780, 620, {
+    const mapMargin = 480;
+    const cx = mapMargin + Math.random() * (WORLD_WIDTH - mapMargin * 2);
+    const cy = mapMargin + Math.random() * (WORLD_HEIGHT - mapMargin * 2);
+    const offlineCulture = CEREMONIAL_CENTER_CULTURES[Math.floor(Math.random() * CEREMONIAL_CENTER_CULTURES.length)]!;
+    const centerContainer = drawCeremonialCenter(this, cx, cy, normalizeCeremonialCenterCulture(offlineCulture));
+    this.offlineDemoCenter = {
+      x: cx,
+      y: cy,
+      radius: CEREMONIAL_CENTER.depositRadius,
+      container: centerContainer,
+    };
+
+    const beastA = this.pickWorldPointAwayFrom(cx, cy, 520, mapMargin);
+    let beastB = this.pickWorldPointAwayFrom(cx, cy, 520, mapMargin);
+    for (let n = 0; n < 40 && Math.hypot(beastB.x - beastA.x, beastB.y - beastA.y) < 420; n += 1) {
+      beastB = this.pickWorldPointAwayFrom(cx, cy, 520, mapMargin);
+    }
+    this.mythicBeasts = [
+      createCamazotz(this, beastA.x, beastA.y, { id: "bestia-1", name: "Camazotz" }),
+      createCamazotz(this, beastB.x, beastB.y, { id: "bestia-2", name: "Balam" }),
+    ];
+
+    const startX = cx + 260;
+    const startY = cy + 180;
+    const aldeano = this.createUnit(startX, startY, {
       id: "aldeano-1",
       kind: "aldeano",
       label: "Aldeano",
@@ -143,13 +172,15 @@ class DemoScene extends Phaser.Scene {
       speed: 170,
     });
 
-    this.createUnit(880, 690, {
+    this.createUnit(startX + 100, startY + 70, {
       id: "guerrero-1",
       kind: "guerrero",
       label: "Guerrero",
       color: 0xb84a3b,
       speed: 190,
     });
+
+    this.focusCameraOnWorldPoint(cx, cy);
 
     this.createHud();
     this.selectUnit(aldeano);
@@ -190,6 +221,7 @@ class DemoScene extends Phaser.Scene {
   }
 
   private registerResourceNode(
+    id: string,
     resource: Resource,
     label: string,
     x: number,
@@ -199,7 +231,7 @@ class DemoScene extends Phaser.Scene {
     visuals: Phaser.GameObjects.GameObject[],
   ) {
     const node: ResourceNode = {
-      id: `${resource}-${this.resourceNodes.length + 1}`,
+      id,
       resource,
       label,
       x,
@@ -563,12 +595,14 @@ class DemoScene extends Phaser.Scene {
 
     socket.addEventListener("close", () => {
       this.onlineMode = false;
+      this.didInitialCameraFocus = false;
       this.onlineText?.setText("online: desconectado");
       this.hideCulturePicker();
     });
 
     socket.addEventListener("error", () => {
       this.onlineMode = false;
+      this.didInitialCameraFocus = false;
       this.onlineText?.setText("online: servidor no disponible");
       this.hideCulturePicker();
     });
@@ -592,7 +626,8 @@ class DemoScene extends Phaser.Scene {
 
     const hint = document.createElement("p");
     hint.className = "culture-picker-hint";
-    hint.textContent = "Tu posición en el mapa sigue tu ranura de jugador; la cultura define el arte del centro ceremonial.";
+    hint.textContent =
+      "Tu centro ceremonial aparece en una posición aleatoria del mapa; la cultura define su arte.";
 
     for (const culture of CEREMONIAL_CENTER_CULTURES) {
       const btn = document.createElement("button");
@@ -696,6 +731,7 @@ class DemoScene extends Phaser.Scene {
     this.onlineText?.setText(`online: ${this.playerId ?? "conectado"} | jugadores ${state.players.length}`);
     this.syncDomState();
     this.syncCulturePicker();
+    this.maybeFocusCameraOnOwnCenter();
   }
 
   private applyOnlineCeremonialCenters(state: OnlineGameState) {
@@ -738,6 +774,11 @@ class DemoScene extends Phaser.Scene {
         center.healthLabel.destroy();
         this.ceremonialCenters = this.ceremonialCenters.filter((candidate) => candidate !== center);
       });
+
+    if (this.playerId && state.ceremonialCenters.some((c) => c.ownerId === this.playerId) && this.offlineDemoCenter) {
+      this.offlineDemoCenter.container.destroy();
+      this.offlineDemoCenter = undefined;
+    }
   }
 
   private applyWinnerState(state: OnlineGameState) {
@@ -1132,7 +1173,7 @@ class DemoScene extends Phaser.Scene {
       });
 
       if (!warrior) {
-        this.setStatus("Necesitas un guerrero para atacar a Camazotz.");
+        this.setStatus("Necesitas un guerrero para atacar a la bestia mitica.");
         return;
       }
 
@@ -1147,7 +1188,7 @@ class DemoScene extends Phaser.Scene {
     beast.dormant = false;
     beast.targetUnit = attacker;
     this.updateBeastLabel(beast);
-    this.setStatus("Camazotz ha despertado. El guerrero ataca.");
+    this.setStatus(`${beast.name} ha despertado. El guerrero ataca.`);
   }
 
   private updateUnitAttack(unit: Phaser.GameObjects.Container, unitData: UnitData, beast: MythicBeast, delta: number) {
@@ -1178,32 +1219,33 @@ class DemoScene extends Phaser.Scene {
   }
 
   private updateBeast(delta: number) {
-    const beast = this.camazotz;
-    if (!beast || beast.dead || beast.dormant) return;
+    for (const beast of this.mythicBeasts) {
+      if (beast.dead || beast.dormant) continue;
 
-    const target = this.findBeastTarget(beast);
-    if (!target) {
-      beast.targetUnit = undefined;
-      return;
+      const target = this.findBeastTarget(beast);
+      if (!target) {
+        beast.targetUnit = undefined;
+        continue;
+      }
+
+      beast.targetUnit = target;
+      const distance = Phaser.Math.Distance.Between(beast.x, beast.y, target.x, target.y);
+      if (distance > beast.range) {
+        const point = this.getApproachPoint(beast.x, beast.y, target.x, target.y, beast.range - 8);
+        const step = Math.min(distance, beast.speed * (delta / 1000));
+        const angle = Phaser.Math.Angle.Between(beast.x, beast.y, point.x, point.y);
+        beast.x += Math.cos(angle) * step;
+        beast.y += Math.sin(angle) * step;
+        beast.container.setPosition(beast.x, beast.y);
+        continue;
+      }
+
+      beast.attackElapsed += delta;
+      if (beast.attackElapsed < beast.cooldownMs) continue;
+
+      beast.attackElapsed = 0;
+      this.damageUnit(target, beast.attack);
     }
-
-    beast.targetUnit = target;
-    const distance = Phaser.Math.Distance.Between(beast.x, beast.y, target.x, target.y);
-    if (distance > beast.range) {
-      const point = this.getApproachPoint(beast.x, beast.y, target.x, target.y, beast.range - 8);
-      const step = Math.min(distance, beast.speed * (delta / 1000));
-      const angle = Phaser.Math.Angle.Between(beast.x, beast.y, point.x, point.y);
-      beast.x += Math.cos(angle) * step;
-      beast.y += Math.sin(angle) * step;
-      beast.container.setPosition(beast.x, beast.y);
-      return;
-    }
-
-    beast.attackElapsed += delta;
-    if (beast.attackElapsed < beast.cooldownMs) return;
-
-    beast.attackElapsed = 0;
-    this.damageUnit(target, beast.attack);
   }
 
   private findBeastTarget(beast: MythicBeast) {
@@ -1253,15 +1295,16 @@ class DemoScene extends Phaser.Scene {
     RESOURCES.forEach((resource) => {
       this.resources[resource] += beast.reward[resource] ?? 0;
     });
-    this.setStatus(`Camazotz fue derrotado. Botin: ${this.formatCost(beast.reward)}.`);
+    this.setStatus(`${beast.name} fue derrotado. Botin: ${this.formatCost(beast.reward)}.`);
     this.updateHudResources();
   }
 
   private findBeastAt(x: number, y: number) {
-    const beast = this.camazotz;
-    if (!beast || beast.dead) return undefined;
-
-    return Phaser.Math.Distance.Between(x, y, beast.x, beast.y) <= 100 ? beast : undefined;
+    for (const beast of this.mythicBeasts) {
+      if (beast.dead) continue;
+      if (Phaser.Math.Distance.Between(x, y, beast.x, beast.y) <= 100) return beast;
+    }
+    return undefined;
   }
 
   private getApproachPoint(fromX: number, fromY: number, toX: number, toY: number, range: number) {
@@ -1539,7 +1582,15 @@ class DemoScene extends Phaser.Scene {
 
   private getOwnCeremonialCenter() {
     const center = this.ceremonialCenters.find((candidate) => candidate.ownerId === this.playerId);
-    if (center) return center;
+    if (center && !center.destroyed) return center;
+
+    if (this.offlineDemoCenter) {
+      return {
+        x: this.offlineDemoCenter.x,
+        y: this.offlineDemoCenter.y,
+        radius: this.offlineDemoCenter.radius,
+      };
+    }
 
     return {
       x: CEREMONIAL_CENTER.x,
@@ -1624,17 +1675,17 @@ class DemoScene extends Phaser.Scene {
       villager: this.isTrainingVillager,
       warrior: this.isTrainingWarrior,
     });
-    document.body.dataset.beast = JSON.stringify(this.camazotz
-      ? {
-          id: this.camazotz.id,
-          name: this.camazotz.name,
-          health: this.camazotz.health,
-          maxHealth: this.camazotz.maxHealth,
-          dormant: this.camazotz.dormant,
-          dead: this.camazotz.dead,
-          reward: this.camazotz.reward,
-        }
-      : undefined);
+    document.body.dataset.beasts = JSON.stringify(
+      this.mythicBeasts.map((beast) => ({
+        id: beast.id,
+        name: beast.name,
+        health: beast.health,
+        maxHealth: beast.maxHealth,
+        dormant: beast.dormant,
+        dead: beast.dead,
+        reward: beast.reward,
+      })),
+    );
   }
 
   private pulseResourceGain(x: number, y: number, message: string) {
@@ -1673,13 +1724,25 @@ class DemoScene extends Phaser.Scene {
       },
       getCarryCapacity: () => ({ ...CARRY_CAPACITY }),
       getUnits: () => this.getDebugUnits(),
-      getBeast: () => this.camazotz ? {
-        id: this.camazotz.id,
-        name: this.camazotz.name,
-        health: this.camazotz.health,
-        dormant: this.camazotz.dormant,
-        dead: this.camazotz.dead,
-      } : undefined,
+      getBeast: () => {
+        const beast = this.mythicBeasts.find((b) => !b.dead);
+        return beast
+          ? {
+              id: beast.id,
+              name: beast.name,
+              health: beast.health,
+              dormant: beast.dormant,
+              dead: beast.dead,
+            }
+          : undefined;
+      },
+      getBeasts: () => this.mythicBeasts.map((beast) => ({
+        id: beast.id,
+        name: beast.name,
+        health: beast.health,
+        dormant: beast.dormant,
+        dead: beast.dead,
+      })),
       trainVillager: () => {
         this.trainVillager();
         return {
@@ -1796,6 +1859,30 @@ class DemoScene extends Phaser.Scene {
       maxHealth: center.maxHealth,
       destroyed: center.destroyed,
     }));
+  }
+
+  private pickWorldPointAwayFrom(ox: number, oy: number, minDist: number, margin: number) {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const x = margin + Math.random() * (WORLD_WIDTH - margin * 2);
+      const y = margin + Math.random() * (WORLD_HEIGHT - margin * 2);
+      if (Math.hypot(x - ox, y - oy) >= minDist) return { x, y };
+    }
+    return { x: margin + 120, y: margin + 120 };
+  }
+
+  private focusCameraOnWorldPoint(x: number, y: number) {
+    const camera = this.cameras.main;
+    camera.centerOn(x, y);
+    camera.scrollX = Phaser.Math.Clamp(camera.scrollX, 0, Math.max(0, WORLD_WIDTH - camera.width / camera.zoom));
+    camera.scrollY = Phaser.Math.Clamp(camera.scrollY, 0, Math.max(0, WORLD_HEIGHT - camera.height / camera.zoom));
+  }
+
+  private maybeFocusCameraOnOwnCenter() {
+    if (!this.playerId || this.didInitialCameraFocus) return;
+    const mine = this.ceremonialCenters.find((c) => c.ownerId === this.playerId && !c.destroyed);
+    if (!mine) return;
+    this.didInitialCameraFocus = true;
+    this.focusCameraOnWorldPoint(mine.x, mine.y);
   }
 
   private updateCamera(delta: number) {
