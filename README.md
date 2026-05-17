@@ -35,6 +35,28 @@ assets/
 - Node.js para servidor
 - WebSocket o Colyseus para multiplayer
 
+## Servidor local de desarrollo
+
+Requisitos: Node.js **20 o superior** y npm instalado.
+
+1. Instala dependencias desde la raiz del monorepositorio:
+
+   ```bash
+   npm install
+   ```
+
+2. Arranca el servidor de desarrollo del cliente (Vite). Sirve la aplicacion en tu maquina:
+
+   ```bash
+   npm run dev --workspace @reinos/client -- --host 127.0.0.1 --port 5173
+   ```
+
+3. Abre el juego en el navegador: [http://127.0.0.1:5173](http://127.0.0.1:5173).
+
+En esta configuracion el cliente intentara enlazar opcionalmente con el proceso WebSocket del juego (por defecto `ws://127.0.0.1:8787`). **Si ese servicio no esta en marcha**, el prototipo corre en modo local pensado como **campaña en solitario (no cooperativa)**: enfrentar bestias miticas en el mapa, gestionar economia y construir edificios, sin otros jugadores humanos aliados ni sesion multiplayer compartida.
+
+Para pruebas de partida online contra otro cliente en la misma red o maquina, en otra terminal puedes ejecutar `npm run dev --workspace @reinos/server`; el comportamiento anterior corresponde a cuando solo levantas el cliente.
+
 ## Pipeline visual y audio de aldeanos
 
 El cliente carga hojas PNG para aldeanos por cultura desde `assets/sprites/aldeanos/`, con variantes masculino/femenina solo esteticas y audio procedural de seleccion/orden. El formato de grilla, fallback procedural y decisiones de licencia quedan documentados en `docs/diseno/aldeanos-arte-audio.md`.
