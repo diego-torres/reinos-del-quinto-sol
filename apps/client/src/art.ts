@@ -3,6 +3,9 @@ import type { Resource } from "@reinos/shared";
 import type { MythicBeast } from "./types.js";
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
 
+export const WATER_TILE_KEY = "terrain-water-tile";
+export const HOUSE_ASSET_KEY = "building-house-flat";
+
 type RegisterResourceNode = (
   resource: Resource,
   label: string,
@@ -49,6 +52,11 @@ export function drawTerrain(scene: Phaser.Scene) {
 }
 
 function drawWaterBands(scene: Phaser.Scene) {
+  if (scene.textures.exists(WATER_TILE_KEY)) {
+    drawWaterTileBands(scene);
+    return;
+  }
+
   const water = scene.add.graphics();
   water.lineStyle(86, 0x27a7b8, 0.94);
   water.beginPath();
@@ -75,6 +83,45 @@ function drawWaterBands(scene: Phaser.Scene) {
 
   water.lineStyle(14, 0xd8c99a, 0.28);
   water.strokePath();
+}
+
+function drawWaterTileBands(scene: Phaser.Scene) {
+  drawWaterPath(scene, 86, [
+    [-80, 1070],
+    [330, 990],
+    [730, 1084],
+    [1165, 972],
+    [1640, 1032],
+    [2480, 865],
+  ]);
+
+  drawWaterPath(scene, 54, [
+    [1760, -60],
+    [1650, 230],
+    [1730, 515],
+    [1660, 820],
+    [1770, 1130],
+    [1700, 1660],
+  ]);
+}
+
+function drawWaterPath(scene: Phaser.Scene, width: number, points: Array<[number, number]>) {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const [x1, y1] = points[index];
+    const [x2, y2] = points[index + 1];
+    drawWaterSegment(scene, x1, y1, x2, y2, width);
+  }
+}
+
+function drawWaterSegment(scene: Phaser.Scene, x1: number, y1: number, x2: number, y2: number, width: number) {
+  const length = Phaser.Math.Distance.Between(x1, y1, x2, y2) + width * 0.45;
+  const angle = Phaser.Math.Angle.Between(x1, y1, x2, y2);
+  const tile = scene.add.tileSprite((x1 + x2) / 2, (y1 + y2) / 2, length, width, WATER_TILE_KEY);
+  tile.setOrigin(0.5);
+  tile.setRotation(angle);
+  tile.setDepth(0);
+  tile.setTileScale(0.72, 0.72);
+  tile.setAlpha(width > 60 ? 0.96 : 0.88);
 }
 
 function drawPlazasAndCauseways(scene: Phaser.Scene) {
@@ -128,6 +175,14 @@ export function drawCeremonialCenter(scene: Phaser.Scene, x: number, y: number) 
 }
 
 export function drawHouse(scene: Phaser.Scene, x: number, y: number) {
+  if (scene.textures.exists(HOUSE_ASSET_KEY)) {
+    const house = scene.add.container(x, y);
+    house.setDepth(2);
+    house.add(scene.add.image(0, 10, HOUSE_ASSET_KEY).setDisplaySize(128, 128));
+    house.add(scene.add.text(0, 82, "Casa", labelStyle(13)).setOrigin(0.5));
+    return house;
+  }
+
   const house = scene.add.container(x, y);
   house.setDepth(2);
   house.add(scene.add.ellipse(0, 38, 92, 24, 0x000000, 0.18));

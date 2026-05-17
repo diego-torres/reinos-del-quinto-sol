@@ -152,6 +152,13 @@ assets/style/tenochtitlan-flat-style-sheet-v1.png
 
 Esta hoja define una primera traduccion de la paleta a tres elementos: tile de agua, casa y aldeano. Debe usarse como guia de direccion, no como asset final listo para spritesheet.
 
+Primeros assets integrados en Phaser:
+
+```text
+apps/client/public/assets/terrain/water-tile.svg
+apps/client/public/assets/buildings/house-flat.svg
+```
+
 ## Formato Tecnico Inicial
 
 - Usar PNG transparentes para sprites finales/provisionales.

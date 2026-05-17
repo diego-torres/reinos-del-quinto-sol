@@ -15,7 +15,9 @@ import {
   drawResourceClusters,
   drawTelpochcalli,
   drawTerrain,
+  HOUSE_ASSET_KEY,
   labelStyle,
+  WATER_TILE_KEY,
 } from "./art.js";
 import {
   CARRY_CAPACITY,
@@ -78,6 +80,11 @@ class DemoScene extends Phaser.Scene {
 
   constructor() {
     super("demo");
+  }
+
+  preload() {
+    this.load.image(WATER_TILE_KEY, "/assets/terrain/water-tile.svg");
+    this.load.image(HOUSE_ASSET_KEY, "/assets/buildings/house-flat.svg");
   }
 
   create() {
