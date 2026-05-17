@@ -1,5 +1,10 @@
 import type Phaser from "phaser";
-import type { OnlineBuildingKind, Resource } from "@reinos/shared";
+import type { OnlineBuildingKind, OnlineCeremonialCenterState, Resource } from "@reinos/shared";
+
+export type CeremonialCenterData = OnlineCeremonialCenterState & {
+  container: Phaser.GameObjects.Container;
+  healthLabel: Phaser.GameObjects.Text;
+};
 
 export type UnitKind = "aldeano" | "guerrero";
 
