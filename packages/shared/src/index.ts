@@ -23,6 +23,33 @@ export const UNIT_EXPLORATION_VISION_RADIUS_PX: Record<OnlineUnitKind, number> =
 
 export type OnlineBuildingKind = "casa" | "telpochcalli";
 
+/**
+ * Trabajo total en "aldeano-segundos": un aldeano solo tarda este tiempo en pared;
+ * N aldeanos en sitio reducen el tiempo total ~ N veces.
+ */
+export const BUILDING_CONSTRUCTION_WORK_VILLAGER_SECONDS: Record<OnlineBuildingKind, number> = {
+  casa: 90,
+  telpochcalli: 200,
+};
+
+/** Radio en píxeles: aldeanos dentro cuentan como trabajando en la obra. */
+export const CONSTRUCTION_SITE_WORK_RADIUS_PX = 72;
+
+export function getBuildingConstructionTotalWork(kind: OnlineBuildingKind): number {
+  return BUILDING_CONSTRUCTION_WORK_VILLAGER_SECONDS[kind];
+}
+
+/** Avance 0–1 hacia el edificio terminado (1 = obra lista). */
+export function buildingConstructionProgressRatio(
+  remainingVillagerSeconds: number,
+  kind: OnlineBuildingKind,
+): number {
+  const total = getBuildingConstructionTotalWork(kind);
+  if (total <= 0) return 1;
+  const ratio = 1 - remainingVillagerSeconds / total;
+  return Math.max(0, Math.min(1, ratio));
+}
+
 export type OnlineUnitState = {
   id: string;
   ownerId: string;
@@ -43,6 +70,8 @@ export type OnlineUnitState = {
   workState: "idle" | "moving" | "gathering" | "returning" | "attacking";
   gatherTargetId?: string;
   attackTargetId?: string;
+  /** Sitio de construcción (building.id) al que este aldeano aporta mano de obra. */
+  constructionTargetId?: string;
 };
 
 export type OnlinePlayerState = {
@@ -68,6 +97,8 @@ export type OnlineBuildingState = {
   kind: OnlineBuildingKind;
   x: number;
   y: number;
+  /** Trabajo restante en aldeano-segundos; 0 = edificio terminado. */
+  constructionWorkRemaining: number;
 };
 
 export const CEREMONIAL_CENTER_CULTURES = ["mexica", "tlaxcalteca", "inca", "maya"] as const;
@@ -203,6 +234,11 @@ export type ClientMessage =
       kind: OnlineBuildingKind;
       x: number;
       y: number;
+    }
+  | {
+      type: "assign-construction";
+      unitId: string;
+      buildingId: string;
     }
   | {
       type: "attack-center";

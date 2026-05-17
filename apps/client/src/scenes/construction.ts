@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { drawHouse, drawTelpochcalli } from "../art.js";
+import { getBuildingConstructionTotalWork } from "@reinos/shared";
 import {
   HOUSE_POPULATION_BONUS,
   HOUSE_WOOD_COST,
@@ -13,6 +13,10 @@ import type { GameScene } from "./gameScene.js";
 import { canAfford, formatCost, spendResources } from "./economy.js";
 import { sendOnlineBuildCommand } from "./server.js";
 import { playUnitOrderFeedback } from "./unitAudio.js";
+import {
+  createUnderConstructionVisual,
+  getLocalConstructionApproachPoint,
+} from "./buildingConstruction.js";
 
 export function startHousePlacement(scene: GameScene): void {
   if (!scene.selectedUnit) return;
@@ -32,6 +36,7 @@ export function startHousePlacement(scene: GameScene): void {
   scene.selectedUnit.setData("gatherTarget", undefined);
   scene.selectedUnit.setData("gatherElapsed", 0);
   scene.selectedUnit.setData("target", undefined);
+  scene.selectedUnit.setData("constructionTargetId", undefined);
   scene.selectedUnit.setData("buildingTarget", "casa");
   scene.selectedUnit.setData("workState", "idle" satisfies UnitWorkState);
   scene.setStatus(`Modo construccion: casa cuesta ${HOUSE_WOOD_COST} madera. Clic izquierdo para colocar.`);
@@ -55,6 +60,7 @@ export function startTelpochcalliPlacement(scene: GameScene): void {
   scene.selectedUnit.setData("gatherTarget", undefined);
   scene.selectedUnit.setData("gatherElapsed", 0);
   scene.selectedUnit.setData("target", undefined);
+  scene.selectedUnit.setData("constructionTargetId", undefined);
   scene.selectedUnit.setData("buildingTarget", "telpochcalli");
   scene.selectedUnit.setData("workState", "idle" satisfies UnitWorkState);
   scene.setStatus(`Modo construccion: telpochcalli cuesta ${formatCost(TELPOCHCALLI_COST)}. Clic izquierdo para colocar.`);
@@ -88,11 +94,13 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
   if (scene.onlineMode && sendOnlineBuildCommand(scene, unitData, scene.buildMode, x, y)) {
     const label = scene.buildMode === "casa" ? "Casa" : "Telpochcalli";
     scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("constructionTargetId", undefined);
     playUnitOrderFeedback(scene, unitData);
     cancelBuildMode(scene, `${label} solicitada al servidor.`);
     return;
   }
 
+  const totalWork = getBuildingConstructionTotalWork(scene.buildMode);
   const building: BuildingData = {
     id: `${scene.buildMode}-${scene.buildings.length + 1}`,
     kind: scene.buildMode,
@@ -100,21 +108,27 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
     x,
     y,
     populationBonus: scene.buildMode === "casa" ? HOUSE_POPULATION_BONUS : 0,
+    constructionWorkRemaining: totalWork,
   };
 
   spendResources(scene, cost);
-  scene.populationLimit += building.populationBonus;
   scene.selectedUnit.setData("buildingTarget", undefined);
   playUnitOrderFeedback(scene, unitData);
-  building.container = building.kind === "casa"
-    ? drawHouse(scene, x, y)
-    : drawTelpochcalli(scene, x, y);
+  createUnderConstructionVisual(scene, building);
   scene.buildings.push(building);
+
+  const approach = getLocalConstructionApproachPoint(scene.selectedUnit, building);
+  scene.selectedUnit.setData("gatherTarget", undefined);
+  scene.selectedUnit.setData("constructionTargetId", building.id);
+  scene.selectedUnit.setData("target", approach);
+  scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
+
   scene.updateHudResources();
-  const extra = building.kind === "casa"
-    ? ` Limite de poblacion: ${scene.population}/${scene.populationLimit}.`
-    : " Presiona G para entrenar guerreros.";
-  cancelBuildMode(scene, `${building.label} construido.${extra}`);
+  const label = building.kind === "casa" ? "Casa" : "Telpochcalli";
+  cancelBuildMode(
+    scene,
+    `${label}: obra iniciada. Mas aldeanos cerca aceleran el avance. Clic derecho en la obra para asignar.`,
+  );
 }
 
 export function cancelBuildMode(scene: GameScene, message: string): void {

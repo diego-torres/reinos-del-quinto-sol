@@ -1,5 +1,5 @@
+import { CONSTRUCTION_SITE_WORK_RADIUS_PX, type CeremonialCenterCulture } from "@reinos/shared";
 import Phaser from "phaser";
-import type { CeremonialCenterCulture } from "@reinos/shared";
 import type { UnitCargo, UnitData, VillagerAnimationState, VillagerGenderVariant, VillagerSkin } from "./types.js";
 import type { GameScene } from "./scenes/gameScene.js";
 import incaFemeninaSrc from "@repo-assets/sprites/aldeanos/inca-femenina.png";
@@ -166,7 +166,7 @@ export function updateVillagerAnimation(scene: GameScene, unit: Phaser.GameObjec
   const rig = unit.getData("villagerRig") as VillagerRig | undefined;
   if (!rig) return;
 
-  const nextState = getVillagerAnimationState(unit);
+  const nextState = getVillagerAnimationState(scene, unit);
   const elapsed = (unit.getData("villagerAnimElapsed") as number | undefined ?? 0) + delta;
   unit.setData("villagerAnimElapsed", elapsed);
 
@@ -242,13 +242,22 @@ function getSheetRow(state: VillagerAnimationState): number {
   return 0;
 }
 
-function getVillagerAnimationState(unit: Phaser.GameObjects.Container): VillagerAnimationState {
+function getVillagerAnimationState(scene: GameScene, unit: Phaser.GameObjects.Container): VillagerAnimationState {
   const cargo = unit.getData("cargo") as UnitCargo | undefined;
   if (cargo?.resource && cargo.amount > 0) return "carry";
 
   const workState = unit.getData("workState") as string | undefined;
   const gatherTarget = unit.getData("gatherTarget");
   const buildingTarget = unit.getData("buildingTarget");
+  const constructionTargetId = unit.getData("constructionTargetId") as string | undefined;
+
+  if (constructionTargetId) {
+    const site = scene.buildings.find((building) => building.id === constructionTargetId);
+    if (site && site.constructionWorkRemaining > 0) {
+      const distance = Phaser.Math.Distance.Between(unit.x, unit.y, site.x, site.y);
+      if (distance <= CONSTRUCTION_SITE_WORK_RADIUS_PX) return "build";
+    }
+  }
 
   if (buildingTarget) return "build";
   if (gatherTarget) return "gather-food";

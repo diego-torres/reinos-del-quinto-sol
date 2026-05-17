@@ -71,7 +71,11 @@ export type BuildingData = {
   y: number;
   ownerId?: string;
   populationBonus: number;
+  /** Aldeano-segundos restantes; 0 = terminado. */
+  constructionWorkRemaining: number;
   container?: Phaser.GameObjects.Container;
+  constructionProgressFill?: Phaser.GameObjects.Rectangle;
+  constructionProgressMaxWidth?: number;
 };
 
 export type TrainingDefinition = {

@@ -1,13 +1,16 @@
 import { WebSocket, WebSocketServer } from "ws";
 import {
+  CONSTRUCTION_SITE_WORK_RADIUS_PX,
   GAME_TITLE,
   ONLINE_WORLD,
   RESOURCES,
   createInitialResourceNodes,
+  getBuildingConstructionTotalWork,
   normalizeCeremonialCenterCulture,
   type CeremonialCenterCulture,
   type ClientMessage,
   type OnlineBuildingKind,
+  type OnlineBuildingState,
   type OnlineCeremonialCenterState,
   type OnlineGameState,
   type OnlineResourceNodeState,
@@ -200,6 +203,7 @@ function handleClientMessage(playerId: string, raw: string) {
     };
     unit.gatherTargetId = undefined;
     unit.attackTargetId = undefined;
+    unit.constructionTargetId = undefined;
     unit.workState = "moving";
   }
 
@@ -209,6 +213,7 @@ function handleClientMessage(playerId: string, raw: string) {
     if (!unit || unit.ownerId !== playerId || unit.kind !== "aldeano" || !node || node.depleted) return;
 
     unit.gatherTargetId = node.id;
+    unit.constructionTargetId = undefined;
     unit.target = getGatherApproachPoint(unit, node);
     unit.workState = "moving";
     unitGatherElapsed.set(unit.id, 0);
@@ -219,6 +224,7 @@ function handleClientMessage(playerId: string, raw: string) {
     if (!unit || unit.ownerId !== playerId || unit.kind !== "aldeano" || !unit.cargo.resource || unit.cargo.amount <= 0) return;
 
     unit.gatherTargetId = undefined;
+    unit.constructionTargetId = undefined;
     unit.attackTargetId = undefined;
     unit.target = getDepositApproachPoint(unit);
     unit.workState = "returning";
@@ -228,12 +234,17 @@ function handleClientMessage(playerId: string, raw: string) {
     buildStructure(playerId, message);
   }
 
+  if (message.type === "assign-construction") {
+    assignConstruction(playerId, message.unitId, message.buildingId);
+  }
+
   if (message.type === "attack-center") {
     const unit = state.units.find((candidate) => candidate.id === message.unitId);
     const center = state.ceremonialCenters.find((candidate) => candidate.id === message.centerId);
     if (!unit || unit.ownerId !== playerId || unit.kind !== "guerrero" || !center || center.ownerId === playerId || center.destroyed) return;
 
     unit.gatherTargetId = undefined;
+    unit.constructionTargetId = undefined;
     unit.attackTargetId = center.id;
     unit.target = getCenterApproachPoint(unit, center);
     unit.workState = "attacking";
@@ -263,6 +274,11 @@ function updateUnits(deltaMs: number) {
       continue;
     }
 
+    if (!unit.target && unit.constructionTargetId && unit.kind === "aldeano") {
+      updateConstructionWorkerMotion(unit);
+      continue;
+    }
+
     if (!unit.target) continue;
 
     const distance = Math.hypot(unit.target.x - unit.x, unit.target.y - unit.y);
@@ -285,6 +301,8 @@ function updateUnits(deltaMs: number) {
     unit.x += Math.cos(angle) * step;
     unit.y += Math.sin(angle) * step;
   }
+
+  advanceConstructionBuildings(deltaMs);
 }
 
 function updateCenterAttack(unit: OnlineUnitState, deltaMs: number) {
@@ -433,6 +451,59 @@ function getCenterApproachPoint(unit: OnlineUnitState, center: OnlineCeremonialC
   };
 }
 
+function getConstructionApproachPoint(unit: OnlineUnitState, building: OnlineBuildingState) {
+  const angle = Math.atan2(unit.y - building.y, unit.x - building.x);
+  const distance = Math.max(16, CONSTRUCTION_SITE_WORK_RADIUS_PX - 24);
+  return {
+    x: building.x + Math.cos(angle) * distance,
+    y: building.y + Math.sin(angle) * distance,
+  };
+}
+
+function updateConstructionWorkerMotion(unit: OnlineUnitState) {
+  const building = state.buildings.find((candidate) => candidate.id === unit.constructionTargetId);
+  if (!building || building.constructionWorkRemaining <= 0) {
+    unit.constructionTargetId = undefined;
+    unit.target = undefined;
+    unit.workState = "idle";
+    return;
+  }
+
+  const distanceToSite = Math.hypot(building.x - unit.x, building.y - unit.y);
+  if (distanceToSite > CONSTRUCTION_SITE_WORK_RADIUS_PX) {
+    unit.target = getConstructionApproachPoint(unit, building);
+    unit.workState = "moving";
+    return;
+  }
+
+  unit.target = undefined;
+  unit.workState = "idle";
+}
+
+function advanceConstructionBuildings(deltaMs: number) {
+  const seconds = deltaMs / 1000;
+
+  for (const building of state.buildings) {
+    if (building.constructionWorkRemaining <= 0) continue;
+
+    const workersPresent = state.units.filter((unit) => {
+      if (unit.kind !== "aldeano" || unit.constructionTargetId !== building.id) return false;
+      return Math.hypot(building.x - unit.x, building.y - unit.y) <= CONSTRUCTION_SITE_WORK_RADIUS_PX;
+    }).length;
+
+    building.constructionWorkRemaining = Math.max(0, building.constructionWorkRemaining - workersPresent * seconds);
+
+    if (building.constructionWorkRemaining <= 0) {
+      building.constructionWorkRemaining = 0;
+      for (const unit of state.units) {
+        if (unit.constructionTargetId === building.id) {
+          unit.constructionTargetId = undefined;
+        }
+      }
+    }
+  }
+}
+
 function getPlayerCenter(playerId: string) {
   return state.ceremonialCenters.find((center) => center.ownerId === playerId);
 }
@@ -470,6 +541,19 @@ function getStartingCenterPosition(slot: number) {
   };
 }
 
+function assignConstruction(playerId: string, unitId: string, buildingId: string) {
+  const unit = state.units.find((candidate) => candidate.id === unitId);
+  const building = state.buildings.find((candidate) => candidate.id === buildingId);
+  if (!unit || unit.ownerId !== playerId || unit.kind !== "aldeano") return;
+  if (!building || building.ownerId !== playerId || building.constructionWorkRemaining <= 0) return;
+
+  unit.gatherTargetId = undefined;
+  unit.attackTargetId = undefined;
+  unit.constructionTargetId = building.id;
+  unit.target = getConstructionApproachPoint(unit, building);
+  unit.workState = "moving";
+}
+
 function buildStructure(
   playerId: string,
   message: Extract<ClientMessage, { type: "build-structure" }>,
@@ -487,17 +571,25 @@ function buildStructure(
   if (!player || !canAfford(player.resources, cost)) return;
 
   spendResources(player.resources, cost);
-  unit.target = undefined;
-  unit.gatherTargetId = undefined;
-  unit.workState = "idle";
+
+  const buildingId = `${message.kind}-${nextBuildingNumber++}`;
+  const constructionWorkRemaining = getBuildingConstructionTotalWork(message.kind);
 
   state.buildings.push({
-    id: `${message.kind}-${nextBuildingNumber++}`,
+    id: buildingId,
     ownerId: playerId,
     kind: message.kind,
     x,
     y,
+    constructionWorkRemaining,
   });
+
+  const building = state.buildings[state.buildings.length - 1]!;
+  unit.gatherTargetId = undefined;
+  unit.attackTargetId = undefined;
+  unit.constructionTargetId = buildingId;
+  unit.target = getConstructionApproachPoint(unit, building);
+  unit.workState = "moving";
 }
 
 function canPlaceBuildingAt(x: number, y: number, kind: OnlineBuildingKind) {

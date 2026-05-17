@@ -13,7 +13,11 @@ import {
   drawTelpochcalli,
   labelStyle,
 } from "../art.js";
-import { HOUSE_POPULATION_BONUS } from "../rules.js";
+import {
+  createUnderConstructionVisual,
+  refreshBuildingConstructionVisual,
+  replaceBuildingWithCompleteVisual,
+} from "./buildingConstruction.js";
 import type { BuildingData, CeremonialCenterData, ResourceNode, UnitData } from "../types.js";
 import { CEREMONIAL_CENTER_LABELS } from "./constants.js";
 import {
@@ -115,6 +119,35 @@ export function sendOnlineAttackCenterCommand(
     centerId: center.id,
   }));
   scene.setStatus(`${unitData.label} ataca el centro ceremonial enemigo.`);
+  return true;
+}
+
+export function sendOnlineAssignConstructionCommand(
+  scene: GameScene,
+  unitData: UnitData,
+  buildingId: string,
+): boolean {
+  if (!unitData.ownerId) {
+    return false;
+  }
+  if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
+
+  if (unitData.ownerId !== scene.playerId) {
+    scene.setStatus("Esa unidad pertenece a otro jugador.");
+    return true;
+  }
+
+  if (unitData.kind !== "aldeano") {
+    scene.setStatus("Solo los aldeanos pueden trabajar en la obra.");
+    return true;
+  }
+
+  scene.socket.send(JSON.stringify({
+    type: "assign-construction",
+    unitId: unitData.id,
+    buildingId,
+  }));
+  scene.setStatus(`${unitData.label} se une a la obra online.`);
   return true;
 }
 
@@ -269,6 +302,7 @@ export function applyOnlineState(scene: GameScene, state: OnlineGameState): void
     unit.setData("workState", unitState.workState);
     unit.setData("gatherTarget", scene.resourceNodes.find((node) => node.id === unitState.gatherTargetId));
     unit.setData("attackCenterId", unitState.attackTargetId);
+    unit.setData("constructionTargetId", unitState.constructionTargetId);
     scene.updateUnitHealthLabel(unit);
     scene.updateUnitCargoLabel(unit);
   });
@@ -390,10 +424,25 @@ function applyOnlineBuildings(scene: GameScene, state: OnlineGameState): void {
     let building = scene.buildings.find((candidate) => candidate.id === buildingState.id);
     if (!building) {
       building = scene.onlineBuildingData(buildingState);
-      building.container = building.kind === "casa"
-        ? drawHouse(scene, building.x, building.y)
-        : drawTelpochcalli(scene, building.x, building.y);
+      if (buildingState.constructionWorkRemaining > 0) {
+        createUnderConstructionVisual(scene, building);
+      } else {
+        building.container = building.kind === "casa"
+          ? drawHouse(scene, building.x, building.y)
+          : drawTelpochcalli(scene, building.x, building.y);
+      }
       scene.buildings.push(building);
+    } else {
+      building.constructionWorkRemaining = buildingState.constructionWorkRemaining;
+      if (building.constructionWorkRemaining > 0) {
+        if (!building.constructionProgressFill) {
+          building.container?.destroy();
+          createUnderConstructionVisual(scene, building);
+        }
+        refreshBuildingConstructionVisual(scene, building);
+      } else if (building.constructionProgressFill) {
+        replaceBuildingWithCompleteVisual(scene, building);
+      }
     }
   });
 
@@ -406,7 +455,11 @@ function applyOnlineBuildings(scene: GameScene, state: OnlineGameState): void {
     });
 
   scene.populationLimit = 5 + scene.buildings
-    .filter((building) => building.ownerId === scene.playerId && building.kind === "casa")
+    .filter(
+      (building) => building.ownerId === scene.playerId
+        && building.kind === "casa"
+        && building.constructionWorkRemaining <= 0,
+    )
     .reduce((total, building) => total + building.populationBonus, 0);
   scene.updateHudResources();
 }

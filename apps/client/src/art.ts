@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { CeremonialCenterCulture, OnlineResourceNodeState, Resource } from "@reinos/shared";
+import type { CeremonialCenterCulture, OnlineBuildingKind, OnlineResourceNodeState, Resource } from "@reinos/shared";
 import { createInitialResourceNodes, normalizeCeremonialCenterCulture } from "@reinos/shared";
 import type { MythicBeast } from "./types.js";
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
@@ -134,6 +134,54 @@ export function drawTelpochcalli(scene: Phaser.Scene, x: number, y: number) {
   building.add(scene.add.rectangle(36, 26, 18, 18, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
   building.add(scene.add.text(0, 104, "Telpochcalli", labelStyle(13)).setOrigin(0.5));
   return building;
+}
+
+/** Obra en curso: andamiaje simple + barra de avance (placeholder). */
+export function drawBuildingConstructionSite(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  kind: OnlineBuildingKind,
+  progress01: number,
+): {
+  container: Phaser.GameObjects.Container;
+  progressFill: Phaser.GameObjects.Rectangle;
+  progressWidth: number;
+} {
+  const scaleY = kind === "casa" ? 1 : 1.12;
+  const container = scene.add.container(x, y);
+  container.setDepth(2);
+
+  const baseY = kind === "casa" ? 38 : 52;
+  container.add(scene.add.ellipse(0, baseY, kind === "casa" ? 96 : 124, 26, 0x000000, 0.22));
+  container.add(scene.add.rectangle(0, 8 * scaleY, 16, 100 * scaleY, 0x6b5344).setStrokeStyle(3, 0x3d2b22));
+  container.add(
+    scene.add.rectangle(-30, -8 * scaleY, 15, 78 * scaleY, 0x7a5c45).setStrokeStyle(3, 0x3d2b22).setRotation(0.1),
+  );
+  container.add(
+    scene.add.rectangle(30, -8 * scaleY, 15, 78 * scaleY, 0x7a5c45).setStrokeStyle(3, 0x3d2b22).setRotation(-0.1),
+  );
+  container.add(scene.add.rectangle(0, -42 * scaleY, kind === "casa" ? 70 : 92, 9, 0x5c4030).setStrokeStyle(2, 0x2a1a12));
+  container.add(
+    scene.add
+      .text(0, baseY + 34, kind === "casa" ? "Casa · obra" : "Telpochcalli · obra", labelStyle(12))
+      .setOrigin(0.5),
+  );
+
+  const barW = kind === "casa" ? 102 : 122;
+  const barH = 11;
+  const barY = baseY + 62;
+  container.add(scene.add.rectangle(0, barY, barW, barH, 0x1a120d, 0.92).setStrokeStyle(2, 0x3d2b22));
+
+  const fillMax = barW - 4;
+  const clamped = Math.max(0, Math.min(1, progress01));
+  const fillW = Math.max(2, clamped * fillMax);
+  const fill = scene.add
+    .rectangle(-fillMax / 2 + 2, barY, fillW, barH - 4, 0xd4a017, 1)
+    .setOrigin(0, 0.5);
+  container.add(fill);
+
+  return { container, progressFill: fill, progressWidth: fillMax };
 }
 
 export function createCamazotz(

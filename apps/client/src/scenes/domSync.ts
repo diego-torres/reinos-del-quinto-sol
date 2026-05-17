@@ -29,6 +29,7 @@ export type DebugBuildingSnapshot = {
   x: number;
   y: number;
   populationBonus: number;
+  constructionWorkRemaining: number;
 };
 
 export type DebugCeremonialCenterSnapshot = {
@@ -73,6 +74,7 @@ export function collectDebugBuildings(scene: GameScene): DebugBuildingSnapshot[]
     x: Math.round(building.x),
     y: Math.round(building.y),
     populationBonus: building.populationBonus,
+    constructionWorkRemaining: building.constructionWorkRemaining,
   }));
 }
 

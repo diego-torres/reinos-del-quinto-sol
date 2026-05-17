@@ -31,6 +31,13 @@ import {
 } from "./economy.js";
 import type { GameScene } from "./gameScene.js";
 import {
+  canVillagerHelpConstruction,
+  findConstructionSiteAt,
+  getLocalConstructionApproachPoint,
+  updateOfflineConstructionWorker,
+} from "./buildingConstruction.js";
+import {
+  sendOnlineAssignConstructionCommand,
   sendOnlineAttackCenterCommand,
   sendOnlineDepositCommand,
   sendOnlineGatherCommand,
@@ -48,6 +55,7 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
 
   if (beast) {
     scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("constructionTargetId", undefined);
     playUnitOrderFeedback(scene, unitData);
     sendSelectedUnitToAttack(scene, unitData, beast);
     return;
@@ -57,11 +65,13 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
     if (center.ownerId === unitData.ownerId || (!unitData.ownerId && center.ownerId === scene.playerId)) {
       if (scene.onlineMode && sendOnlineDepositCommand(scene, unitData)) {
         scene.selectedUnit.setData("buildingTarget", undefined);
+        scene.selectedUnit.setData("constructionTargetId", undefined);
         playUnitOrderFeedback(scene, unitData);
         return;
       }
 
       scene.selectedUnit.setData("buildingTarget", undefined);
+      scene.selectedUnit.setData("constructionTargetId", undefined);
       playUnitOrderFeedback(scene, unitData);
       sendSelectedUnitToManualDeposit(scene, unitData);
       return;
@@ -69,11 +79,35 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
 
     if (scene.onlineMode && sendOnlineAttackCenterCommand(scene, unitData, center)) {
       scene.selectedUnit.setData("buildingTarget", undefined);
+      scene.selectedUnit.setData("constructionTargetId", undefined);
       playUnitOrderFeedback(scene, unitData);
       return;
     }
 
     scene.setStatus("El centro ceremonial enemigo solo se puede atacar en modo online.");
+    return;
+  }
+
+  const constructionSite = findConstructionSiteAt(scene, x, y);
+  if (constructionSite && canVillagerHelpConstruction(scene, unitData, constructionSite)) {
+    if (scene.onlineMode) {
+      if (sendOnlineAssignConstructionCommand(scene, unitData, constructionSite.id)) {
+        scene.selectedUnit.setData("buildingTarget", undefined);
+        scene.selectedUnit.setData("gatherTarget", undefined);
+        scene.selectedUnit.setData("gatherElapsed", 0);
+        playUnitOrderFeedback(scene, unitData);
+      }
+      return;
+    }
+
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("gatherTarget", undefined);
+    scene.selectedUnit.setData("gatherElapsed", 0);
+    scene.selectedUnit.setData("constructionTargetId", constructionSite.id);
+    scene.selectedUnit.setData("target", getLocalConstructionApproachPoint(scene.selectedUnit, constructionSite));
+    scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
+    playUnitOrderFeedback(scene, unitData);
+    scene.setStatus(`${unitData.label} ayuda en la obra de ${constructionSite.label}.`);
     return;
   }
 
@@ -85,11 +119,13 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
 
     if (scene.onlineMode && sendOnlineGatherCommand(scene, unitData, resourceNode)) {
       scene.selectedUnit.setData("buildingTarget", undefined);
+      scene.selectedUnit.setData("constructionTargetId", undefined);
       playUnitOrderFeedback(scene, unitData);
       return;
     }
 
     scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("constructionTargetId", undefined);
     playUnitOrderFeedback(scene, unitData);
     sendUnitToGather(scene, scene.selectedUnit, resourceNode);
     return;
@@ -98,11 +134,13 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
   if (isPointInCeremonialCenter(scene, x, y)) {
     if (scene.onlineMode && sendOnlineDepositCommand(scene, unitData)) {
       scene.selectedUnit.setData("buildingTarget", undefined);
+      scene.selectedUnit.setData("constructionTargetId", undefined);
       playUnitOrderFeedback(scene, unitData);
       return;
     }
 
     scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("constructionTargetId", undefined);
     playUnitOrderFeedback(scene, unitData);
     sendSelectedUnitToManualDeposit(scene, unitData);
     return;
@@ -110,6 +148,7 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
 
   if (scene.onlineMode && sendOnlineMoveCommand(scene, unitData, x, y)) {
     scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("constructionTargetId", undefined);
     playUnitOrderFeedback(scene, unitData);
     return;
   }
@@ -118,6 +157,7 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
   scene.selectedUnit.setData("gatherElapsed", 0);
   scene.selectedUnit.setData("attackTarget", undefined);
   scene.selectedUnit.setData("buildingTarget", undefined);
+  scene.selectedUnit.setData("constructionTargetId", undefined);
   scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
   playUnitOrderFeedback(scene, unitData);
   moveSelectedUnit(scene, x, y);
@@ -130,6 +170,7 @@ export function moveSelectedUnit(scene: GameScene, x: number, y: number): void {
   scene.selectedUnit.setData("target", new Phaser.Math.Vector2(x, y));
   scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
   scene.selectedUnit.setData("attackTarget", undefined);
+  scene.selectedUnit.setData("constructionTargetId", undefined);
   scene.setStatus(`${unitData.label} avanzando a ${Math.round(x)}, ${Math.round(y)}.`);
 
   scene.targetMarkers.get(unitData.id)?.destroy();
@@ -151,6 +192,7 @@ export function sendUnitToGather(scene: GameScene, unit: Phaser.GameObjects.Cont
 
   unit.setData("gatherTarget", resourceNode);
   unit.setData("gatherElapsed", 0);
+  unit.setData("constructionTargetId", undefined);
   unit.setData("target", approach);
   unit.setData("workState", "moving" satisfies UnitWorkState);
   scene.setStatus(`${unitData.label} va hacia ${resourceNode.label.toLowerCase()} para recolectar.`);
@@ -184,6 +226,12 @@ export function updateUnits(scene: GameScene, delta: number): void {
 
     if (attackTarget && !attackTarget.dead) {
       updateUnitAttack(scene, child, unitData, attackTarget, delta);
+      return true;
+    }
+
+    const constructionTargetId = child.getData("constructionTargetId") as string | undefined;
+    if (!scene.onlineMode && !target && constructionTargetId && unitData.kind === "aldeano") {
+      updateOfflineConstructionWorker(scene, child, constructionTargetId);
       return true;
     }
 
@@ -253,6 +301,7 @@ export function createUnit(scene: GameScene, x: number, y: number, data: UnitDat
   unit.setData("gatherElapsed", 0);
   unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
   unit.setData("workState", "idle" satisfies UnitWorkState);
+  unit.setData("constructionTargetId", undefined);
   unit.setSize(52, 60);
   unit.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
 
@@ -321,7 +370,7 @@ export function selectUnit(scene: GameScene, unit: Phaser.GameObjects.Container)
   const unitData = unit.getData("unit") as UnitData;
   playUnitSelectionFeedback(scene, unitData);
   const hint = unitData.kind === "aldeano"
-    ? "Clic derecho en recurso para recolectar. H casa, T telpochcalli."
+    ? "Clic derecho: recurso, obra en construcción o mover. H casa, T telpochcalli."
     : "Clic derecho para mover o atacar el centro enemigo.";
   scene.setStatus(`${unitData.label} seleccionado. ${hint}`);
 }
@@ -369,7 +418,9 @@ export function trainWarrior(scene: GameScene): void {
     return;
   }
 
-  const telpochcalli = scene.buildings.find((building) => building.kind === "telpochcalli");
+  const telpochcalli = scene.buildings.find(
+    (building) => building.kind === "telpochcalli" && building.constructionWorkRemaining <= 0,
+  );
   if (!telpochcalli) {
     scene.setStatus("Construye un telpochcalli antes de entrenar guerreros.");
     return;
