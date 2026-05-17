@@ -3,6 +3,7 @@ import {
   GAME_TITLE,
   ONLINE_WORLD,
   RESOURCES,
+  type CeremonialCenterCulture,
   type ClientMessage,
   type OnlineBuildingKind,
   type OnlineCeremonialCenterState,
@@ -55,6 +56,14 @@ const WARRIOR_ATTACK = 14;
 const WARRIOR_RANGE = 78;
 const WARRIOR_COOLDOWN_MS = 850;
 let nextBuildingNumber = 1;
+
+/** Ritmo de aparición por ranura (jugador 1 = mexica, …, jugador 4 = maya). */
+const CEREMONIAL_CENTER_CULTURE_BY_SLOT: CeremonialCenterCulture[] = [
+  "mexica",
+  "tlaxcalteca",
+  "inca",
+  "maya",
+];
 
 server.on("connection", (socket) => {
   const playerId = assignPlayer(socket);
@@ -134,9 +143,11 @@ function ensureCeremonialCenter(playerId: string) {
 
   const slot = state.players.find((player) => player.id === playerId)?.slot ?? 1;
   const position = getStartingCenterPosition(slot);
+  const culture = CEREMONIAL_CENTER_CULTURE_BY_SLOT[(slot - 1) % CEREMONIAL_CENTER_CULTURE_BY_SLOT.length]!;
   state.ceremonialCenters.push({
     id: `${playerId}-centro-ceremonial`,
     ownerId: playerId,
+    culture,
     x: position.x,
     y: position.y,
     radius: CENTER_DEPOSIT_RADIUS,

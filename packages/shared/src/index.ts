@@ -60,9 +60,24 @@ export type OnlineBuildingState = {
   y: number;
 };
 
+export const CEREMONIAL_CENTER_CULTURES = ["mexica", "tlaxcalteca", "inca", "maya"] as const;
+
+export type CeremonialCenterCulture = (typeof CEREMONIAL_CENTER_CULTURES)[number];
+
+export function normalizeCeremonialCenterCulture(value: unknown): CeremonialCenterCulture {
+  if (
+    typeof value === "string" &&
+    (CEREMONIAL_CENTER_CULTURES as readonly string[]).includes(value)
+  ) {
+    return value as CeremonialCenterCulture;
+  }
+  return "maya";
+}
+
 export type OnlineCeremonialCenterState = {
   id: string;
   ownerId: string;
+  culture: CeremonialCenterCulture;
   x: number;
   y: number;
   radius: number;

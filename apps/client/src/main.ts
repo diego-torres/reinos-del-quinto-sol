@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import {
   GAME_TITLE,
   RESOURCES,
+  normalizeCeremonialCenterCulture,
   type OnlineBuildingState,
   type OnlineCeremonialCenterState,
   type OnlineGameState,
@@ -10,6 +11,8 @@ import {
   type ServerMessage,
 } from "@reinos/shared";
 import {
+  CEREMONIAL_CENTER_DISPLAY_SIZE,
+  CEREMONIAL_CENTER_TEXTURE_KEYS,
   createCamazotz,
   drawCeremonialCenter,
   drawHouse,
@@ -50,6 +53,10 @@ import type {
   UnitWorkState,
 } from "./types.js";
 import "./styles.css";
+import mexicaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/mexica.png";
+import tlaxcaltecaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/tlaxcalteca.png";
+import incaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/inca.png";
+import mayaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/maya.png";
 
 type CeremonialCenterData = OnlineCeremonialCenterState & {
   container: Phaser.GameObjects.Container;
@@ -100,6 +107,10 @@ class DemoScene extends Phaser.Scene {
     this.load.image(WATER_TILE_KEY, "/assets/terrain/water-tile.svg");
     this.load.image(HOUSE_ASSET_KEY, "/assets/buildings/house-flat.svg");
     this.load.image(VILLAGER_ASSET_KEY, "/assets/units/villager-flat.svg");
+    this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.mexica, mexicaCeremonialAsset);
+    this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaCeremonialAsset);
+    this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.inca, incaCeremonialAsset);
+    this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.maya, mayaCeremonialAsset);
   }
 
   create() {
@@ -608,18 +619,23 @@ class DemoScene extends Phaser.Scene {
 
   private applyOnlineCeremonialCenters(state: OnlineGameState) {
     state.ceremonialCenters.forEach((centerState) => {
+      const culture = normalizeCeremonialCenterCulture(centerState.culture);
       let center = this.ceremonialCenters.find((candidate) => candidate.id === centerState.id);
       if (!center) {
-        const container = drawCeremonialCenter(this, centerState.x, centerState.y);
+        const container = drawCeremonialCenter(this, centerState.x, centerState.y, culture);
         const healthLabel = this.add.text(
           centerState.x,
-          centerState.y + 188,
+          centerState.y + CEREMONIAL_CENTER_DISPLAY_SIZE / 2 + 52,
           "",
           labelStyle(14),
         ).setOrigin(0.5);
         healthLabel.setDepth(4);
-        center = { ...centerState, container, healthLabel };
+        center = { ...centerState, culture, container, healthLabel };
         this.ceremonialCenters.push(center);
+      } else if (center.culture !== culture) {
+        center.container.destroy();
+        center.container = drawCeremonialCenter(this, centerState.x, centerState.y, culture);
+        center.culture = culture;
       }
 
       center.x = centerState.x;
@@ -629,7 +645,7 @@ class DemoScene extends Phaser.Scene {
       center.destroyed = centerState.destroyed;
       center.container.setPosition(centerState.x, centerState.y);
       center.container.setAlpha(center.destroyed ? 0.35 : 1);
-      center.healthLabel.setPosition(centerState.x, centerState.y + 188);
+      center.healthLabel.setPosition(centerState.x, centerState.y + CEREMONIAL_CENTER_DISPLAY_SIZE / 2 + 52);
       center.healthLabel.setText(`${center.ownerId === this.playerId ? "Tu centro" : "Centro rival"} ${center.health}/${center.maxHealth}`);
     });
 
@@ -1692,6 +1708,7 @@ class DemoScene extends Phaser.Scene {
     return this.ceremonialCenters.map((center) => ({
       id: center.id,
       ownerId: center.ownerId,
+      culture: center.culture,
       x: Math.round(center.x),
       y: Math.round(center.y),
       health: center.health,

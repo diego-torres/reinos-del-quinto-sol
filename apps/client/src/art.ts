@@ -1,11 +1,30 @@
 import Phaser from "phaser";
-import type { Resource } from "@reinos/shared";
+import type { CeremonialCenterCulture, Resource } from "@reinos/shared";
+import { normalizeCeremonialCenterCulture } from "@reinos/shared";
 import type { MythicBeast } from "./types.js";
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
 
 export const WATER_TILE_KEY = "terrain-water-tile";
 export const HOUSE_ASSET_KEY = "building-house-flat";
 export const VILLAGER_ASSET_KEY = "unit-villager-flat";
+
+export const CEREMONIAL_CENTER_DISPLAY_SIZE = 280;
+
+export const CEREMONIAL_CENTER_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
+  mexica: "ceremonial-center-mexica",
+  tlaxcalteca: "ceremonial-center-tlaxcalteca",
+  inca: "ceremonial-center-inca",
+  maya: "ceremonial-center-maya",
+};
+
+function resolveCeremonialCenterTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCulture): string {
+  const normalized = normalizeCeremonialCenterCulture(culture);
+  const primary = CEREMONIAL_CENTER_TEXTURE_KEYS[normalized];
+  if (scene.textures.exists(primary)) return primary;
+  const fallback = CEREMONIAL_CENTER_TEXTURE_KEYS.maya;
+  if (scene.textures.exists(fallback)) return fallback;
+  return primary;
+}
 
 type RegisterResourceNode = (
   resource: Resource,
@@ -177,14 +196,27 @@ export function drawResourceClusters(scene: Phaser.Scene, registerResourceNode: 
   clusters.forEach((drawCluster) => drawCluster());
 }
 
-export function drawCeremonialCenter(scene: Phaser.Scene, x: number, y: number) {
+export function drawCeremonialCenter(scene: Phaser.Scene, x: number, y: number, culture: CeremonialCenterCulture) {
   const base = scene.add.container(x, y);
-  base.add(scene.add.rectangle(0, 88, 260, 84, 0xb9a66f).setStrokeStyle(4, 0x735f38));
-  base.add(scene.add.rectangle(0, 35, 210, 74, 0xc8b77a).setStrokeStyle(4, 0x735f38));
-  base.add(scene.add.rectangle(0, -12, 152, 58, 0xd5c585).setStrokeStyle(4, 0x735f38));
-  base.add(scene.add.rectangle(0, -52, 76, 38, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21));
-  base.add(scene.add.rectangle(0, 58, 42, 142, 0x8e7445, 0.45));
-  base.add(scene.add.text(0, 158, "Centro ceremonial", labelStyle(15)).setOrigin(0.5));
+  base.setDepth(2);
+  const textureKey = resolveCeremonialCenterTextureKey(scene, culture);
+
+  if (scene.textures.exists(textureKey)) {
+    base.add(
+      scene.add
+        .image(0, 0, textureKey)
+        .setDisplaySize(CEREMONIAL_CENTER_DISPLAY_SIZE, CEREMONIAL_CENTER_DISPLAY_SIZE),
+    );
+  } else {
+    base.add(scene.add.rectangle(0, 88, 260, 84, 0xb9a66f).setStrokeStyle(4, 0x735f38));
+    base.add(scene.add.rectangle(0, 35, 210, 74, 0xc8b77a).setStrokeStyle(4, 0x735f38));
+    base.add(scene.add.rectangle(0, -12, 152, 58, 0xd5c585).setStrokeStyle(4, 0x735f38));
+    base.add(scene.add.rectangle(0, -52, 76, 38, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21));
+    base.add(scene.add.rectangle(0, 58, 42, 142, 0x8e7445, 0.45));
+  }
+
+  const labelY = CEREMONIAL_CENTER_DISPLAY_SIZE / 2 + 26;
+  base.add(scene.add.text(0, labelY, "Centro ceremonial", labelStyle(15)).setOrigin(0.5));
   return base;
 }
 
