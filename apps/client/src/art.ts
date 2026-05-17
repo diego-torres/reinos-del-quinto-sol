@@ -153,15 +153,28 @@ function drawPlazasAndCauseways(scene: Phaser.Scene) {
 }
 
 export function drawResourceClusters(scene: Phaser.Scene, registerResourceNode: RegisterResourceNode) {
-  drawMaizeField(scene, 620, 520, registerResourceNode);
-  drawMaizeField(scene, 280, 780, registerResourceNode);
-  drawMaizeField(scene, 1080, 560, registerResourceNode);
-  drawForest(scene, 1360, 350, registerResourceNode);
-  drawForest(scene, 1760, 740, registerResourceNode);
-  drawStoneOutcrop(scene, 690, 1030, registerResourceNode);
-  drawStoneOutcrop(scene, 1650, 1120, registerResourceNode);
-  drawObsidianDeposit(scene, 1120, 1120, registerResourceNode);
-  drawObsidianDeposit(scene, 2050, 430, registerResourceNode);
+  const clusters: Array<() => void> = [
+    () => drawMaizeField(scene, 620, 520, registerResourceNode),
+    () => drawMaizeField(scene, 280, 780, registerResourceNode),
+    () => drawMaizeField(scene, 1080, 560, registerResourceNode),
+    () => drawForest(scene, 1360, 350, registerResourceNode),
+    () => drawForest(scene, 1760, 740, registerResourceNode),
+    () => drawStoneOutcrop(scene, 690, 1030, registerResourceNode),
+    () => drawStoneOutcrop(scene, 1650, 1120, registerResourceNode),
+    () => drawObsidianDeposit(scene, 1120, 1120, registerResourceNode),
+    () => drawObsidianDeposit(scene, 2050, 430, registerResourceNode),
+    () => drawMaizeField(scene, WORLD_WIDTH - 732, WORLD_HEIGHT - 588, registerResourceNode),
+    () => drawMaizeField(scene, WORLD_WIDTH - 392, WORLD_HEIGHT - 848, registerResourceNode),
+    () => drawMaizeField(scene, WORLD_WIDTH - 1192, WORLD_HEIGHT - 628, registerResourceNode),
+    () => drawForest(scene, WORLD_WIDTH - 1492, WORLD_HEIGHT - 454, registerResourceNode),
+    () => drawForest(scene, WORLD_WIDTH - 1892, WORLD_HEIGHT - 844, registerResourceNode),
+    () => drawStoneOutcrop(scene, WORLD_WIDTH - 706, WORLD_HEIGHT - 1046, registerResourceNode),
+    () => drawStoneOutcrop(scene, WORLD_WIDTH - 1666, WORLD_HEIGHT - 1136, registerResourceNode),
+    () => drawObsidianDeposit(scene, WORLD_WIDTH - 1130, WORLD_HEIGHT - 1124, registerResourceNode),
+    () => drawObsidianDeposit(scene, WORLD_WIDTH - 2060, WORLD_HEIGHT - 434, registerResourceNode),
+  ];
+
+  clusters.forEach((drawCluster) => drawCluster());
 }
 
 export function drawCeremonialCenter(scene: Phaser.Scene, x: number, y: number) {

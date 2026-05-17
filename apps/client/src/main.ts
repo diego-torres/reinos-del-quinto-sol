@@ -3,6 +3,7 @@ import {
   GAME_TITLE,
   RESOURCES,
   type OnlineBuildingState,
+  type OnlineCeremonialCenterState,
   type OnlineGameState,
   type OnlineUnitState,
   type Resource,
@@ -27,11 +28,14 @@ import {
   GATHER_INTERVAL_MS,
   HOUSE_POPULATION_BONUS,
   HOUSE_WOOD_COST,
+  MAX_CAMERA_ZOOM,
+  MIN_CAMERA_ZOOM,
   TELPOCHCALLI_COST,
   TRAINING,
   UNIT_STATS,
   WORLD_HEIGHT,
   WORLD_WIDTH,
+  ZOOM_STEP,
   getBuildingCost,
 } from "./rules.js";
 import type {
@@ -47,6 +51,11 @@ import type {
 } from "./types.js";
 import "./styles.css";
 
+type CeremonialCenterData = OnlineCeremonialCenterState & {
+  container: Phaser.GameObjects.Container;
+  healthLabel: Phaser.GameObjects.Text;
+};
+
 class DemoScene extends Phaser.Scene {
   private selectedUnit?: Phaser.GameObjects.Container;
   private selectionRing?: Phaser.GameObjects.Ellipse;
@@ -60,6 +69,7 @@ class DemoScene extends Phaser.Scene {
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
   private resourceNodes: ResourceNode[] = [];
   private buildings: BuildingData[] = [];
+  private ceremonialCenters: CeremonialCenterData[] = [];
   private units: Phaser.GameObjects.Container[] = [];
   private camazotz?: MythicBeast;
   private nextUnitId = 2;
@@ -96,7 +106,6 @@ class DemoScene extends Phaser.Scene {
 
     drawTerrain(this);
     drawResourceClusters(this, this.registerResourceNode.bind(this));
-    drawCeremonialCenter(this, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
     this.camazotz = createCamazotz(this, 1010, 780);
 
     const aldeano = this.createUnit(780, 620, {
@@ -132,6 +141,10 @@ class DemoScene extends Phaser.Scene {
       }
     });
 
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _objects: unknown, _deltaX: number, deltaY: number) => {
+      this.adjustCameraZoom(deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP);
+    });
+
     this.input.mouse?.disableContextMenu();
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.wasd = this.input.keyboard?.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
@@ -139,6 +152,8 @@ class DemoScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-T", () => this.startTelpochcalliPlacement());
     this.input.keyboard?.on("keydown-V", () => this.trainVillager());
     this.input.keyboard?.on("keydown-G", () => this.trainWarrior());
+    this.input.keyboard?.on("keydown-Q", () => this.adjustCameraZoom(-ZOOM_STEP));
+    this.input.keyboard?.on("keydown-E", () => this.adjustCameraZoom(ZOOM_STEP));
   }
 
   update(_time: number, delta: number) {
@@ -244,7 +259,7 @@ class DemoScene extends Phaser.Scene {
     const unitData = unit.getData("unit") as UnitData;
     const hint = unitData.kind === "aldeano"
       ? "Clic derecho en recurso para recolectar. H casa, T telpochcalli."
-      : "Clic derecho para mover.";
+      : "Clic derecho para mover o atacar el centro enemigo.";
     this.setStatus(`${unitData.label} seleccionado. ${hint}`);
   }
 
@@ -253,10 +268,29 @@ class DemoScene extends Phaser.Scene {
 
     const unitData = this.selectedUnit.getData("unit") as UnitData;
     const resourceNode = this.findResourceNodeAt(x, y);
+    const center = this.findCeremonialCenterAt(x, y);
     const beast = this.findBeastAt(x, y);
 
     if (beast) {
       this.sendSelectedUnitToAttack(unitData, beast);
+      return;
+    }
+
+    if (center) {
+      if (center.ownerId === unitData.ownerId || (!unitData.ownerId && center.ownerId === this.playerId)) {
+        if (this.onlineMode && this.sendOnlineDepositCommand(unitData)) {
+          return;
+        }
+
+        this.sendSelectedUnitToManualDeposit(unitData);
+        return;
+      }
+
+      if (this.onlineMode && this.sendOnlineAttackCenterCommand(unitData, center)) {
+        return;
+      }
+
+      this.setStatus("El centro ceremonial enemigo solo se puede atacar en modo online.");
       return;
     }
 
@@ -505,6 +539,7 @@ class DemoScene extends Phaser.Scene {
       unit.setData("cargo", unitState.cargo);
       unit.setData("workState", unitState.workState);
       unit.setData("gatherTarget", this.resourceNodes.find((node) => node.id === unitState.gatherTargetId));
+      unit.setData("attackCenterId", unitState.attackTargetId);
       this.updateUnitHealthLabel(unit);
       this.updateUnitCargoLabel(unit);
     });
@@ -533,9 +568,56 @@ class DemoScene extends Phaser.Scene {
     }
 
     this.applyOnlineResources(state);
+    this.applyOnlineCeremonialCenters(state);
     this.applyOnlineBuildings(state);
+    this.applyWinnerState(state);
     this.onlineText?.setText(`online: ${this.playerId ?? "conectado"} | jugadores ${state.players.length}`);
     this.syncDomState();
+  }
+
+  private applyOnlineCeremonialCenters(state: OnlineGameState) {
+    state.ceremonialCenters.forEach((centerState) => {
+      let center = this.ceremonialCenters.find((candidate) => candidate.id === centerState.id);
+      if (!center) {
+        const container = drawCeremonialCenter(this, centerState.x, centerState.y);
+        const healthLabel = this.add.text(
+          centerState.x,
+          centerState.y + 188,
+          "",
+          labelStyle(14),
+        ).setOrigin(0.5);
+        healthLabel.setDepth(4);
+        center = { ...centerState, container, healthLabel };
+        this.ceremonialCenters.push(center);
+      }
+
+      center.x = centerState.x;
+      center.y = centerState.y;
+      center.health = centerState.health;
+      center.maxHealth = centerState.maxHealth;
+      center.destroyed = centerState.destroyed;
+      center.container.setPosition(centerState.x, centerState.y);
+      center.container.setAlpha(center.destroyed ? 0.35 : 1);
+      center.healthLabel.setPosition(centerState.x, centerState.y + 188);
+      center.healthLabel.setText(`${center.ownerId === this.playerId ? "Tu centro" : "Centro rival"} ${center.health}/${center.maxHealth}`);
+    });
+
+    const activeIds = new Set(state.ceremonialCenters.map((center) => center.id));
+    this.ceremonialCenters
+      .filter((center) => !activeIds.has(center.id))
+      .forEach((center) => {
+        center.container.destroy();
+        center.healthLabel.destroy();
+        this.ceremonialCenters = this.ceremonialCenters.filter((candidate) => candidate !== center);
+      });
+  }
+
+  private applyWinnerState(state: OnlineGameState) {
+    if (!state.winnerId) return;
+
+    this.setStatus(state.winnerId === this.playerId
+      ? "Victoria: destruiste el centro ceremonial enemigo."
+      : "Derrota: tu centro ceremonial fue destruido.");
   }
 
   private applyOnlineResources(state: OnlineGameState) {
@@ -684,6 +766,28 @@ class DemoScene extends Phaser.Scene {
     return true;
   }
 
+  private sendOnlineAttackCenterCommand(unitData: UnitData, center: CeremonialCenterData) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+
+    if (unitData.ownerId !== this.playerId) {
+      this.setStatus("Esa unidad pertenece a otro jugador.");
+      return true;
+    }
+
+    if (unitData.kind !== "guerrero") {
+      this.setStatus("Necesitas un guerrero para atacar el centro ceremonial enemigo.");
+      return true;
+    }
+
+    this.socket.send(JSON.stringify({
+      type: "attack-center",
+      unitId: unitData.id,
+      centerId: center.id,
+    }));
+    this.setStatus(`${unitData.label} ataca el centro ceremonial enemigo.`);
+    return true;
+  }
+
   private startHousePlacement() {
     if (!this.selectedUnit) return;
 
@@ -815,7 +919,8 @@ class DemoScene extends Phaser.Scene {
     this.setStatus(`Entrenando aldeano (${TRAINING.aldeano.durationMs / 1000}s).`);
 
     this.time.delayedCall(TRAINING.aldeano.durationMs, () => {
-      const spawn = this.getSpawnPointNear(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y, 230);
+      const center = this.getOwnCeremonialCenter();
+      const spawn = this.getSpawnPointNear(center.x, center.y, 230);
       const unit = this.createUnit(spawn.x, spawn.y, {
         id: `aldeano-${this.nextUnitId++}`,
         kind: "aldeano",
@@ -1191,8 +1296,9 @@ class DemoScene extends Phaser.Scene {
   }
 
   private updateDeposit(unit: Phaser.GameObjects.Container, unitData: UnitData, node: ResourceNode) {
-    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
-    if (distance > CEREMONIAL_CENTER.depositRadius) {
+    const center = this.getOwnCeremonialCenter();
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, center.x, center.y);
+    if (distance > center.radius) {
       unit.setData("target", this.getDepositApproachPoint(unit));
       unit.setData("workState", "returning" satisfies UnitWorkState);
       return;
@@ -1230,11 +1336,12 @@ class DemoScene extends Phaser.Scene {
   }
 
   private getDepositApproachPoint(unit: Phaser.GameObjects.Container) {
-    const angle = Phaser.Math.Angle.Between(CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y, unit.x, unit.y);
-    const distance = CEREMONIAL_CENTER.depositRadius - 28;
+    const center = this.getOwnCeremonialCenter();
+    const angle = Phaser.Math.Angle.Between(center.x, center.y, unit.x, unit.y);
+    const distance = center.radius - 28;
     return new Phaser.Math.Vector2(
-      CEREMONIAL_CENTER.x + Math.cos(angle) * distance,
-      CEREMONIAL_CENTER.y + Math.sin(angle) * distance,
+      center.x + Math.cos(angle) * distance,
+      center.y + Math.sin(angle) * distance,
     );
   }
 
@@ -1265,8 +1372,9 @@ class DemoScene extends Phaser.Scene {
   }
 
   private updateManualDeposit(unit: Phaser.GameObjects.Container, unitData: UnitData) {
-    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y);
-    if (distance > CEREMONIAL_CENTER.depositRadius) {
+    const center = this.getOwnCeremonialCenter();
+    const distance = Phaser.Math.Distance.Between(unit.x, unit.y, center.x, center.y);
+    if (distance > center.radius) {
       unit.setData("target", this.getDepositApproachPoint(unit));
       unit.setData("workState", "returning" satisfies UnitWorkState);
       return;
@@ -1291,7 +1399,25 @@ class DemoScene extends Phaser.Scene {
   }
 
   private isPointInCeremonialCenter(x: number, y: number) {
-    return Phaser.Math.Distance.Between(x, y, CEREMONIAL_CENTER.x, CEREMONIAL_CENTER.y) <= CEREMONIAL_CENTER.depositRadius;
+    const center = this.getOwnCeremonialCenter();
+    return Phaser.Math.Distance.Between(x, y, center.x, center.y) <= center.radius;
+  }
+
+  private findCeremonialCenterAt(x: number, y: number) {
+    return this.ceremonialCenters.find((center) => {
+      return !center.destroyed && Phaser.Math.Distance.Between(x, y, center.x, center.y) <= center.radius;
+    });
+  }
+
+  private getOwnCeremonialCenter() {
+    const center = this.ceremonialCenters.find((candidate) => candidate.ownerId === this.playerId);
+    if (center) return center;
+
+    return {
+      x: CEREMONIAL_CENTER.x,
+      y: CEREMONIAL_CENTER.y,
+      radius: CEREMONIAL_CENTER.depositRadius,
+    };
   }
 
   private getUnitCargo(unit: Phaser.GameObjects.Container): UnitCargo {
@@ -1358,6 +1484,12 @@ class DemoScene extends Phaser.Scene {
       limit: this.populationLimit,
     });
     document.body.dataset.buildings = JSON.stringify(this.getDebugBuildings());
+    document.body.dataset.ceremonialCenters = JSON.stringify(this.getDebugCeremonialCenters());
+    document.body.dataset.world = JSON.stringify({
+      width: WORLD_WIDTH,
+      height: WORLD_HEIGHT,
+      zoom: this.cameras.main.zoom,
+    });
     document.body.dataset.carryCapacity = JSON.stringify(CARRY_CAPACITY);
     document.body.dataset.units = JSON.stringify(this.getDebugUnits());
     document.body.dataset.training = JSON.stringify({
@@ -1525,9 +1657,21 @@ class DemoScene extends Phaser.Scene {
     }));
   }
 
+  private getDebugCeremonialCenters() {
+    return this.ceremonialCenters.map((center) => ({
+      id: center.id,
+      ownerId: center.ownerId,
+      x: Math.round(center.x),
+      y: Math.round(center.y),
+      health: center.health,
+      maxHealth: center.maxHealth,
+      destroyed: center.destroyed,
+    }));
+  }
+
   private updateCamera(delta: number) {
     const camera = this.cameras.main;
-    const speed = 520 * (delta / 1000);
+    const speed = (620 / camera.zoom) * (delta / 1000);
     const left = this.cursors?.left?.isDown || this.wasd?.A?.isDown;
     const right = this.cursors?.right?.isDown || this.wasd?.D?.isDown;
     const up = this.cursors?.up?.isDown || this.wasd?.W?.isDown;
@@ -1537,6 +1681,20 @@ class DemoScene extends Phaser.Scene {
     if (right) camera.scrollX += speed;
     if (up) camera.scrollY -= speed;
     if (down) camera.scrollY += speed;
+
+    camera.scrollX = Phaser.Math.Clamp(camera.scrollX, 0, Math.max(0, WORLD_WIDTH - camera.width / camera.zoom));
+    camera.scrollY = Phaser.Math.Clamp(camera.scrollY, 0, Math.max(0, WORLD_HEIGHT - camera.height / camera.zoom));
+  }
+
+  private adjustCameraZoom(delta: number) {
+    const camera = this.cameras.main;
+    const nextZoom = Phaser.Math.Clamp(
+      Math.round((camera.zoom + delta) * 100) / 100,
+      MIN_CAMERA_ZOOM,
+      MAX_CAMERA_ZOOM,
+    );
+    camera.setZoom(nextZoom);
+    this.setStatus(`Zoom ${Math.round(nextZoom * 100)}%. Q/E o rueda para acercar y alejar.`);
   }
 }
 

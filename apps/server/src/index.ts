@@ -1,9 +1,11 @@
 import { WebSocket, WebSocketServer } from "ws";
 import {
   GAME_TITLE,
+  ONLINE_WORLD,
   RESOURCES,
   type ClientMessage,
   type OnlineBuildingKind,
+  type OnlineCeremonialCenterState,
   type OnlineGameState,
   type OnlineResourceNodeState,
   type OnlineUnitKind,
@@ -23,6 +25,7 @@ const state: OnlineGameState = {
   units: [],
   resourceNodes: createResourceNodes(),
   buildings: [],
+  ceremonialCenters: [],
 };
 
 const CARRY_CAPACITY: Record<Resource, number> = {
@@ -33,11 +36,8 @@ const CARRY_CAPACITY: Record<Resource, number> = {
 };
 const GATHER_AMOUNT = 10;
 const GATHER_INTERVAL_MS = 1000;
-const CEREMONIAL_CENTER = {
-  x: 520,
-  y: 470,
-  depositRadius: 180,
-};
+const CENTER_MAX_HEALTH = 650;
+const CENTER_DEPOSIT_RADIUS = 180;
 const HOUSE_WOOD_COST = 50;
 const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
   madera: 120,
@@ -51,10 +51,14 @@ const RESOURCE_CLEARANCE: Record<OnlineBuildingKind, number> = {
   casa: 54,
   telpochcalli: 82,
 };
+const WARRIOR_ATTACK = 14;
+const WARRIOR_RANGE = 78;
+const WARRIOR_COOLDOWN_MS = 850;
 let nextBuildingNumber = 1;
 
 server.on("connection", (socket) => {
   const playerId = assignPlayer(socket);
+  ensureCeremonialCenter(playerId);
   ensureStartingUnits(playerId);
 
   send(socket, {
@@ -109,19 +113,37 @@ function removePlayer(playerId: string) {
   });
   state.units = state.units.filter((unit) => unit.ownerId !== playerId);
   state.buildings = state.buildings.filter((building) => building.ownerId !== playerId);
+  state.ceremonialCenters = state.ceremonialCenters.filter((center) => center.ownerId !== playerId);
 }
 
 function ensureStartingUnits(playerId: string) {
   if (state.units.some((unit) => unit.ownerId === playerId)) return;
 
-  const slot = state.players.find((player) => player.id === playerId)?.slot ?? 1;
-  const startX = slot === 1 ? 780 : 1240;
-  const startY = slot === 1 ? 620 : 620;
+  const center = getPlayerCenter(playerId);
+  const startX = center ? center.x + 260 : 780;
+  const startY = center ? center.y + 180 : 620;
 
   state.units.push(
     createUnit(`${playerId}-aldeano-1`, playerId, "aldeano", startX, startY),
     createUnit(`${playerId}-guerrero-1`, playerId, "guerrero", startX + 100, startY + 70),
   );
+}
+
+function ensureCeremonialCenter(playerId: string) {
+  if (state.ceremonialCenters.some((center) => center.ownerId === playerId)) return;
+
+  const slot = state.players.find((player) => player.id === playerId)?.slot ?? 1;
+  const position = getStartingCenterPosition(slot);
+  state.ceremonialCenters.push({
+    id: `${playerId}-centro-ceremonial`,
+    ownerId: playerId,
+    x: position.x,
+    y: position.y,
+    radius: CENTER_DEPOSIT_RADIUS,
+    health: CENTER_MAX_HEALTH,
+    maxHealth: CENTER_MAX_HEALTH,
+    destroyed: false,
+  });
 }
 
 function createUnit(
@@ -162,10 +184,11 @@ function handleClientMessage(playerId: string, raw: string) {
     if (!unit || unit.ownerId !== playerId) return;
 
     unit.target = {
-      x: clamp(message.target.x, 0, 2400),
-      y: clamp(message.target.y, 0, 1600),
+      x: clamp(message.target.x, 0, ONLINE_WORLD.width),
+      y: clamp(message.target.y, 0, ONLINE_WORLD.height),
     };
     unit.gatherTargetId = undefined;
+    unit.attackTargetId = undefined;
     unit.workState = "moving";
   }
 
@@ -185,6 +208,7 @@ function handleClientMessage(playerId: string, raw: string) {
     if (!unit || unit.ownerId !== playerId || unit.kind !== "aldeano" || !unit.cargo.resource || unit.cargo.amount <= 0) return;
 
     unit.gatherTargetId = undefined;
+    unit.attackTargetId = undefined;
     unit.target = getDepositApproachPoint(unit);
     unit.workState = "returning";
   }
@@ -192,9 +216,22 @@ function handleClientMessage(playerId: string, raw: string) {
   if (message.type === "build-structure") {
     buildStructure(playerId, message);
   }
+
+  if (message.type === "attack-center") {
+    const unit = state.units.find((candidate) => candidate.id === message.unitId);
+    const center = state.ceremonialCenters.find((candidate) => candidate.id === message.centerId);
+    if (!unit || unit.ownerId !== playerId || unit.kind !== "guerrero" || !center || center.ownerId === playerId || center.destroyed) return;
+
+    unit.gatherTargetId = undefined;
+    unit.attackTargetId = center.id;
+    unit.target = getCenterApproachPoint(unit, center);
+    unit.workState = "attacking";
+    unitAttackElapsed.set(unit.id, 0);
+  }
 }
 
 const unitGatherElapsed = new Map<string, number>();
+const unitAttackElapsed = new Map<string, number>();
 
 function updateUnits(deltaMs: number) {
   const seconds = deltaMs / 1000;
@@ -210,12 +247,19 @@ function updateUnits(deltaMs: number) {
       continue;
     }
 
+    if (!unit.target && unit.attackTargetId && unit.workState === "attacking") {
+      updateCenterAttack(unit, deltaMs);
+      continue;
+    }
+
     if (!unit.target) continue;
 
     const distance = Math.hypot(unit.target.x - unit.x, unit.target.y - unit.y);
     if (distance < 4) {
       unit.target = undefined;
-      if (unit.gatherTargetId) {
+      if (unit.attackTargetId && unit.workState === "attacking") {
+        updateCenterAttack(unit, deltaMs);
+      } else if (unit.gatherTargetId) {
         unit.workState = unit.workState === "returning" ? "returning" : "gathering";
       } else if (unit.workState === "returning") {
         updateDeposit(unit);
@@ -229,6 +273,38 @@ function updateUnits(deltaMs: number) {
     const angle = Math.atan2(unit.target.y - unit.y, unit.target.x - unit.x);
     unit.x += Math.cos(angle) * step;
     unit.y += Math.sin(angle) * step;
+  }
+}
+
+function updateCenterAttack(unit: OnlineUnitState, deltaMs: number) {
+  const center = state.ceremonialCenters.find((candidate) => candidate.id === unit.attackTargetId);
+  if (!center || center.destroyed) {
+    unit.attackTargetId = undefined;
+    unit.workState = "idle";
+    return;
+  }
+
+  const distance = Math.hypot(center.x - unit.x, center.y - unit.y);
+  if (distance > center.radius + WARRIOR_RANGE) {
+    unit.target = getCenterApproachPoint(unit, center);
+    unit.workState = "attacking";
+    return;
+  }
+
+  const elapsed = (unitAttackElapsed.get(unit.id) ?? 0) + deltaMs;
+  if (elapsed < WARRIOR_COOLDOWN_MS) {
+    unitAttackElapsed.set(unit.id, elapsed);
+    return;
+  }
+
+  center.health = Math.max(0, center.health - WARRIOR_ATTACK);
+  unitAttackElapsed.set(unit.id, 0);
+
+  if (center.health <= 0) {
+    center.destroyed = true;
+    unit.attackTargetId = undefined;
+    unit.workState = "idle";
+    state.winnerId = unit.ownerId;
   }
 }
 
@@ -285,8 +361,14 @@ function updateGathering(unit: OnlineUnitState, deltaMs: number) {
 }
 
 function updateDeposit(unit: OnlineUnitState) {
-  const distance = Math.hypot(CEREMONIAL_CENTER.x - unit.x, CEREMONIAL_CENTER.y - unit.y);
-  if (distance > CEREMONIAL_CENTER.depositRadius) {
+  const center = getPlayerCenter(unit.ownerId);
+  if (!center || center.destroyed) {
+    unit.workState = "idle";
+    return;
+  }
+
+  const distance = Math.hypot(center.x - unit.x, center.y - unit.y);
+  if (distance > center.radius) {
     unit.target = getDepositApproachPoint(unit);
     unit.workState = "returning";
     return;
@@ -320,11 +402,38 @@ function getGatherApproachPoint(unit: OnlineUnitState, node: OnlineResourceNodeS
 }
 
 function getDepositApproachPoint(unit: OnlineUnitState) {
-  const angle = Math.atan2(unit.y - CEREMONIAL_CENTER.y, unit.x - CEREMONIAL_CENTER.x);
-  const distance = CEREMONIAL_CENTER.depositRadius - 28;
+  const center = getPlayerCenter(unit.ownerId);
+  if (!center) return { x: unit.x, y: unit.y };
+
+  const angle = Math.atan2(unit.y - center.y, unit.x - center.x);
+  const distance = center.radius - 28;
   return {
-    x: CEREMONIAL_CENTER.x + Math.cos(angle) * distance,
-    y: CEREMONIAL_CENTER.y + Math.sin(angle) * distance,
+    x: center.x + Math.cos(angle) * distance,
+    y: center.y + Math.sin(angle) * distance,
+  };
+}
+
+function getCenterApproachPoint(unit: OnlineUnitState, center: OnlineCeremonialCenterState) {
+  const angle = Math.atan2(unit.y - center.y, unit.x - center.x);
+  const distance = center.radius + WARRIOR_RANGE - 12;
+  return {
+    x: center.x + Math.cos(angle) * distance,
+    y: center.y + Math.sin(angle) * distance,
+  };
+}
+
+function getPlayerCenter(playerId: string) {
+  return state.ceremonialCenters.find((center) => center.ownerId === playerId);
+}
+
+function getStartingCenterPosition(slot: number) {
+  if (slot === 1) return { x: 720, y: 680 };
+  if (slot === 2) return { x: ONLINE_WORLD.width - 720, y: ONLINE_WORLD.height - 680 };
+
+  const angle = ((slot - 1) / 6) * Math.PI * 2;
+  return {
+    x: ONLINE_WORLD.width / 2 + Math.cos(angle) * 2200,
+    y: ONLINE_WORLD.height / 2 + Math.sin(angle) * 1400,
   };
 }
 
@@ -339,6 +448,15 @@ function createResourceNodes(): OnlineResourceNodeState[] {
     createResourceNode("piedra-7", "piedra", "Piedra", 1658, 1128, 74),
     createResourceNode("obsidiana-8", "obsidiana", "Obsidiana", 1125, 1122, 72),
     createResourceNode("obsidiana-9", "obsidiana", "Obsidiana", 2055, 432, 72),
+    createResourceNode("maiz-10", "maiz", "Maizal", ONLINE_WORLD.width - 676, ONLINE_WORLD.height - 554, 94),
+    createResourceNode("maiz-11", "maiz", "Maizal", ONLINE_WORLD.width - 336, ONLINE_WORLD.height - 814, 94),
+    createResourceNode("maiz-12", "maiz", "Maizal", ONLINE_WORLD.width - 1136, ONLINE_WORLD.height - 594, 94),
+    createResourceNode("madera-13", "madera", "Bosque", ONLINE_WORLD.width - 1426, ONLINE_WORLD.height - 402, 118),
+    createResourceNode("madera-14", "madera", "Bosque", ONLINE_WORLD.width - 1826, ONLINE_WORLD.height - 792, 118),
+    createResourceNode("piedra-15", "piedra", "Piedra", ONLINE_WORLD.width - 698, ONLINE_WORLD.height - 1038, 74),
+    createResourceNode("piedra-16", "piedra", "Piedra", ONLINE_WORLD.width - 1658, ONLINE_WORLD.height - 1128, 74),
+    createResourceNode("obsidiana-17", "obsidiana", "Obsidiana", ONLINE_WORLD.width - 1125, ONLINE_WORLD.height - 1122, 72),
+    createResourceNode("obsidiana-18", "obsidiana", "Obsidiana", ONLINE_WORLD.width - 2055, ONLINE_WORLD.height - 432, 72),
   ];
 }
 
@@ -370,8 +488,8 @@ function buildStructure(
   if (!unit || unit.ownerId !== playerId || unit.kind !== "aldeano") return;
   if (!isBuildingKind(message.kind)) return;
 
-  const x = clamp(message.x, 0, 2400);
-  const y = clamp(message.y, 0, 1600);
+  const x = clamp(message.x, 0, ONLINE_WORLD.width);
+  const y = clamp(message.y, 0, ONLINE_WORLD.height);
   if (!canPlaceBuildingAt(x, y, message.kind)) return;
 
   const player = state.players.find((candidate) => candidate.id === playerId);
@@ -393,7 +511,7 @@ function buildStructure(
 }
 
 function canPlaceBuildingAt(x: number, y: number, kind: OnlineBuildingKind) {
-  if (x < 80 || y < 80 || x > 2400 - 80 || y > 1600 - 80) return false;
+  if (x < 80 || y < 80 || x > ONLINE_WORLD.width - 80 || y > ONLINE_WORLD.height - 80) return false;
 
   const nearResource = state.resourceNodes.some((node) => {
     if (node.depleted) return false;
@@ -401,9 +519,12 @@ function canPlaceBuildingAt(x: number, y: number, kind: OnlineBuildingKind) {
   });
   if (nearResource) return false;
 
-  return !state.buildings.some((building) => {
+  const nearBuilding = state.buildings.some((building) => {
     return Math.hypot(x - building.x, y - building.y) < BUILDING_RADIUS[kind];
   });
+  if (nearBuilding) return false;
+
+  return !state.ceremonialCenters.some((center) => Math.hypot(x - center.x, y - center.y) < center.radius + BUILDING_RADIUS[kind]);
 }
 
 function getBuildingCost(kind: OnlineBuildingKind): Partial<Record<Resource, number>> {

@@ -1,9 +1,12 @@
-import type { Resource } from "@reinos/shared";
+import { ONLINE_WORLD, type Resource } from "@reinos/shared";
 import type { BuildingKind, TrainingDefinition, UnitKind, UnitStats } from "./types.js";
 
-export const WORLD_WIDTH = 2400;
-export const WORLD_HEIGHT = 1600;
+export const WORLD_WIDTH = ONLINE_WORLD.width;
+export const WORLD_HEIGHT = ONLINE_WORLD.height;
 export const TILE_SIZE = 96;
+export const MIN_CAMERA_ZOOM = 0.25;
+export const MAX_CAMERA_ZOOM = 1;
+export const ZOOM_STEP = 0.25;
 
 export const GATHER_INTERVAL_MS = 1000;
 export const GATHER_AMOUNT = 10;

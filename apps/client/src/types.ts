@@ -37,7 +37,7 @@ export type UnitCargo = {
   amount: number;
 };
 
-export type UnitWorkState = "idle" | "moving" | "gathering" | "returning";
+export type UnitWorkState = "idle" | "moving" | "gathering" | "returning" | "attacking";
 
 export type BuildingKind = OnlineBuildingKind;
 

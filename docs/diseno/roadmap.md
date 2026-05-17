@@ -83,6 +83,8 @@ Incluye:
 - Servidor autoritativo.
 - Movimiento, recoleccion y construccion basica autoritativos.
 - Edificios compartidos entre navegadores.
+- Centros ceremoniales por jugador y condicion de victoria inicial.
+- Mapa online ampliado con zoom out hasta 25%.
 - Limite de poblacion propio sin publicar el limite del rival.
 - Reconexion basica si es viable.
 
