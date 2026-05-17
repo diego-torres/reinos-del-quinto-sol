@@ -16,9 +16,18 @@ import {
 import { HOUSE_POPULATION_BONUS } from "../rules.js";
 import type { BuildingData, CeremonialCenterData, ResourceNode, UnitData } from "../types.js";
 import { CEREMONIAL_CENTER_LABELS } from "./constants.js";
+import {
+  redrawExplorationFogIfDirty,
+  resetExplorationFog,
+  revealFromLocalPlayerUnits,
+  revealOwnedCeremonialAreasForLocalPlayer,
+} from "./explorationFog.js";
 import type { GameScene } from "./gameScene.js";
 
 export function sendOnlineMoveCommand(scene: GameScene, unitData: UnitData, x: number, y: number): boolean {
+  if (!unitData.ownerId) {
+    return false;
+  }
   if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
 
   if (unitData.ownerId !== scene.playerId) {
@@ -36,6 +45,9 @@ export function sendOnlineMoveCommand(scene: GameScene, unitData: UnitData, x: n
 }
 
 export function sendOnlineGatherCommand(scene: GameScene, unitData: UnitData, resourceNode: ResourceNode): boolean {
+  if (!unitData.ownerId) {
+    return false;
+  }
   if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
 
   if (unitData.ownerId !== scene.playerId) {
@@ -53,6 +65,9 @@ export function sendOnlineGatherCommand(scene: GameScene, unitData: UnitData, re
 }
 
 export function sendOnlineDepositCommand(scene: GameScene, unitData: UnitData): boolean {
+  if (!unitData.ownerId) {
+    return false;
+  }
   if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
 
   if (unitData.ownerId !== scene.playerId) {
@@ -79,6 +94,9 @@ export function sendOnlineAttackCenterCommand(
   unitData: UnitData,
   center: CeremonialCenterData,
 ): boolean {
+  if (!unitData.ownerId) {
+    return false;
+  }
   if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
 
   if (unitData.ownerId !== scene.playerId) {
@@ -101,6 +119,9 @@ export function sendOnlineAttackCenterCommand(
 }
 
 export function sendOnlineBuildCommand(scene: GameScene, unitData: UnitData, kind: BuildingData["kind"], x: number, y: number): boolean {
+  if (!unitData.ownerId) {
+    return false;
+  }
   if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
 
   if (unitData.ownerId !== scene.playerId) {
@@ -133,6 +154,7 @@ export function connectToGameServer(scene: GameScene): void {
       scene.playerId = message.playerId;
       scene.onlineMode = true;
       scene.onlineText?.setText(`online: ${scene.playerId}`);
+      resetExplorationFog(scene);
       applyOnlineState(scene, message.state);
       return;
     }
@@ -278,6 +300,9 @@ export function applyOnlineState(scene: GameScene, state: OnlineGameState): void
   applyOnlineBuildings(scene, state);
   applyWinnerState(scene, state);
   scene.onlineText?.setText(`online: ${scene.playerId ?? "conectado"} | jugadores ${state.players.length}`);
+  revealOwnedCeremonialAreasForLocalPlayer(scene);
+  revealFromLocalPlayerUnits(scene);
+  redrawExplorationFogIfDirty(scene);
   scene.syncDomState();
   syncCulturePicker(scene);
   scene.maybeFocusCameraOnOwnCenter();
