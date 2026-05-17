@@ -1,8 +1,11 @@
 import Phaser from "phaser";
 import {
+  CEREMONIAL_CENTER_CULTURES,
   GAME_TITLE,
   RESOURCES,
   normalizeCeremonialCenterCulture,
+  type CeremonialCenterCulture,
+  type ClientMessage,
   type OnlineBuildingState,
   type OnlineCeremonialCenterState,
   type OnlineGameState,
@@ -58,6 +61,13 @@ import tlaxcaltecaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/t
 import incaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/inca.png";
 import mayaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/maya.png";
 
+const CEREMONIAL_CENTER_LABELS: Record<CeremonialCenterCulture, string> = {
+  mexica: "Mexica",
+  tlaxcalteca: "Tlaxcalteca",
+  inca: "Inca",
+  maya: "Maya",
+};
+
 type CeremonialCenterData = OnlineCeremonialCenterState & {
   container: Phaser.GameObjects.Container;
   healthLabel: Phaser.GameObjects.Text;
@@ -87,6 +97,7 @@ class DemoScene extends Phaser.Scene {
   private isTrainingWarrior = false;
   private socket?: WebSocket;
   private playerId?: string;
+  private culturePickerRoot?: HTMLDivElement;
   private onlineState?: OnlineGameState;
   private onlineMode = false;
   private initializedOnlineUnits = false;
@@ -553,12 +564,81 @@ class DemoScene extends Phaser.Scene {
     socket.addEventListener("close", () => {
       this.onlineMode = false;
       this.onlineText?.setText("online: desconectado");
+      this.hideCulturePicker();
     });
 
     socket.addEventListener("error", () => {
       this.onlineMode = false;
       this.onlineText?.setText("online: servidor no disponible");
+      this.hideCulturePicker();
     });
+  }
+
+  private ensureCulturePickerDom() {
+    if (this.culturePickerRoot) return;
+
+    const root = document.createElement("div");
+    root.className = "culture-picker-root";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", "Elegir cultura");
+
+    const inner = document.createElement("div");
+    inner.className = "culture-picker-panel";
+
+    const title = document.createElement("h2");
+    title.className = "culture-picker-title";
+    title.textContent = "Elige tu cultura";
+
+    const hint = document.createElement("p");
+    hint.className = "culture-picker-hint";
+    hint.textContent = "Tu posición en el mapa sigue tu ranura de jugador; la cultura define el arte del centro ceremonial.";
+
+    for (const culture of CEREMONIAL_CENTER_CULTURES) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "culture-picker-option";
+      btn.textContent = CEREMONIAL_CENTER_LABELS[culture];
+      btn.addEventListener("click", () => this.sendJoinGame(culture));
+      inner.appendChild(btn);
+    }
+
+    root.appendChild(title);
+    root.appendChild(hint);
+    root.appendChild(inner);
+    document.body.appendChild(root);
+    this.culturePickerRoot = root;
+  }
+
+  private hideCulturePicker() {
+    if (!this.culturePickerRoot) return;
+    this.culturePickerRoot.style.display = "none";
+  }
+
+  private syncCulturePicker() {
+    if (!this.onlineMode || !this.playerId) {
+      this.hideCulturePicker();
+      return;
+    }
+
+    const hasCenter = this.onlineState?.ceremonialCenters.some((c) => c.ownerId === this.playerId) ?? false;
+    if (hasCenter) {
+      this.hideCulturePicker();
+      if (!this.onlineState?.winnerId) {
+        this.setStatus("Selecciona una unidad.");
+      }
+      return;
+    }
+
+    this.ensureCulturePickerDom();
+    this.culturePickerRoot!.style.display = "flex";
+    this.setStatus("Elige tu cultura para entrar al mapa.");
+  }
+
+  private sendJoinGame(culture: CeremonialCenterCulture) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.playerId) return;
+    const message: ClientMessage = { type: "join-game", culture };
+    this.socket.send(JSON.stringify(message));
   }
 
   private applyOnlineState(state: OnlineGameState) {
@@ -615,6 +695,7 @@ class DemoScene extends Phaser.Scene {
     this.applyWinnerState(state);
     this.onlineText?.setText(`online: ${this.playerId ?? "conectado"} | jugadores ${state.players.length}`);
     this.syncDomState();
+    this.syncCulturePicker();
   }
 
   private applyOnlineCeremonialCenters(state: OnlineGameState) {

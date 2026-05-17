@@ -3,6 +3,7 @@ import {
   GAME_TITLE,
   ONLINE_WORLD,
   RESOURCES,
+  normalizeCeremonialCenterCulture,
   type CeremonialCenterCulture,
   type ClientMessage,
   type OnlineBuildingKind,
@@ -57,18 +58,8 @@ const WARRIOR_RANGE = 78;
 const WARRIOR_COOLDOWN_MS = 850;
 let nextBuildingNumber = 1;
 
-/** Ritmo de aparición por ranura (jugador 1 = mexica, …, jugador 4 = maya). */
-const CEREMONIAL_CENTER_CULTURE_BY_SLOT: CeremonialCenterCulture[] = [
-  "mexica",
-  "tlaxcalteca",
-  "inca",
-  "maya",
-];
-
 server.on("connection", (socket) => {
   const playerId = assignPlayer(socket);
-  ensureCeremonialCenter(playerId);
-  ensureStartingUnits(playerId);
 
   send(socket, {
     type: "welcome",
@@ -138,16 +129,16 @@ function ensureStartingUnits(playerId: string) {
   );
 }
 
-function ensureCeremonialCenter(playerId: string) {
+function ensureCeremonialCenter(playerId: string, culture: CeremonialCenterCulture) {
   if (state.ceremonialCenters.some((center) => center.ownerId === playerId)) return;
 
   const slot = state.players.find((player) => player.id === playerId)?.slot ?? 1;
   const position = getStartingCenterPosition(slot);
-  const culture = CEREMONIAL_CENTER_CULTURE_BY_SLOT[(slot - 1) % CEREMONIAL_CENTER_CULTURE_BY_SLOT.length]!;
+  const resolvedCulture = normalizeCeremonialCenterCulture(culture);
   state.ceremonialCenters.push({
     id: `${playerId}-centro-ceremonial`,
     ownerId: playerId,
-    culture,
+    culture: resolvedCulture,
     x: position.x,
     y: position.y,
     radius: CENTER_DEPOSIT_RADIUS,
@@ -187,6 +178,14 @@ function handleClientMessage(playerId: string, raw: string) {
   try {
     message = JSON.parse(raw) as ClientMessage;
   } catch {
+    return;
+  }
+
+  if (message.type === "join-game") {
+    if (!state.players.some((player) => player.id === playerId)) return;
+    ensureCeremonialCenter(playerId, message.culture);
+    ensureStartingUnits(playerId);
+    broadcastState();
     return;
   }
 

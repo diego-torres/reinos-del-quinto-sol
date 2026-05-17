@@ -110,6 +110,10 @@ export type ServerMessage =
 
 export type ClientMessage =
   | {
+      type: "join-game";
+      culture: CeremonialCenterCulture;
+    }
+  | {
       type: "move-unit";
       unitId: string;
       target: {
