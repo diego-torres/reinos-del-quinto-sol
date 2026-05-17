@@ -157,6 +157,7 @@ Primeros assets integrados en Phaser:
 ```text
 apps/client/public/assets/terrain/water-tile.svg
 apps/client/public/assets/buildings/house-flat.svg
+apps/client/public/assets/units/villager-flat.svg
 ```
 
 ## Formato Tecnico Inicial

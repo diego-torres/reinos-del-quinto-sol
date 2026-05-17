@@ -5,6 +5,7 @@ import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
 
 export const WATER_TILE_KEY = "terrain-water-tile";
 export const HOUSE_ASSET_KEY = "building-house-flat";
+export const VILLAGER_ASSET_KEY = "unit-villager-flat";
 
 type RegisterResourceNode = (
   resource: Resource,

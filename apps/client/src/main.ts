@@ -17,6 +17,7 @@ import {
   drawTerrain,
   HOUSE_ASSET_KEY,
   labelStyle,
+  VILLAGER_ASSET_KEY,
   WATER_TILE_KEY,
 } from "./art.js";
 import {
@@ -85,6 +86,7 @@ class DemoScene extends Phaser.Scene {
   preload() {
     this.load.image(WATER_TILE_KEY, "/assets/terrain/water-tile.svg");
     this.load.image(HOUSE_ASSET_KEY, "/assets/buildings/house-flat.svg");
+    this.load.image(VILLAGER_ASSET_KEY, "/assets/units/villager-flat.svg");
   }
 
   create() {
@@ -185,15 +187,7 @@ class DemoScene extends Phaser.Scene {
     unit.setSize(52, 60);
     unit.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
 
-    const shadow = this.add.ellipse(0, 28, 48, 18, 0x000000, 0.22);
-    const body = this.add.ellipse(0, 4, 34, 44, data.color);
-    const head = this.add.circle(0, -24, 13, 0xc98957);
-    const accent = data.kind === "guerrero"
-      ? this.add.rectangle(20, -2, 7, 56, 0x2b201a).setRotation(-0.45)
-      : this.add.rectangle(-20, 2, 8, 42, 0x6b4328).setRotation(0.35);
-    const marker = data.kind === "guerrero"
-      ? this.add.triangle(0, -44, -12, 10, 0, -12, 12, 10, 0x223d63)
-      : this.add.arc(0, -39, 13, 210, 330, false, 0xf0c94a);
+    const unitVisuals = this.createUnitVisuals(data);
     const ownerLabel = data.ownerId && data.ownerId !== this.playerId ? ` ${data.ownerId.replace("player-", "P")}` : "";
     const label = this.add.text(
       0,
@@ -203,7 +197,7 @@ class DemoScene extends Phaser.Scene {
     ).setOrigin(0.5);
     const cargoLabel = this.add.text(0, 68, "", labelStyle(12)).setOrigin(0.5);
 
-    unit.add([shadow, body, head, accent, marker, label, cargoLabel]);
+    unit.add([...unitVisuals, label, cargoLabel]);
     unit.setData("healthLabel", label);
     unit.setData("cargoLabel", cargoLabel);
     this.updateUnitCargoLabel(unit);
@@ -217,6 +211,26 @@ class DemoScene extends Phaser.Scene {
 
     this.units.push(unit);
     return unit;
+  }
+
+  private createUnitVisuals(data: UnitData) {
+    if (data.kind === "aldeano" && this.textures.exists(VILLAGER_ASSET_KEY)) {
+      return [
+        this.add.image(0, 5, VILLAGER_ASSET_KEY).setDisplaySize(72, 72),
+      ];
+    }
+
+    const shadow = this.add.ellipse(0, 28, 48, 18, 0x000000, 0.22);
+    const body = this.add.ellipse(0, 4, 34, 44, data.color);
+    const head = this.add.circle(0, -24, 13, 0xc98957);
+    const accent = data.kind === "guerrero"
+      ? this.add.rectangle(20, -2, 7, 56, 0x2b201a).setRotation(-0.45)
+      : this.add.rectangle(-20, 2, 8, 42, 0x6b4328).setRotation(0.35);
+    const marker = data.kind === "guerrero"
+      ? this.add.triangle(0, -44, -12, 10, 0, -12, 12, 10, 0x223d63)
+      : this.add.arc(0, -39, 13, 210, 330, false, 0xf0c94a);
+
+    return [shadow, body, head, accent, marker];
   }
 
   private selectUnit(unit: Phaser.GameObjects.Container) {
