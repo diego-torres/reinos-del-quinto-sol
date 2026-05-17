@@ -65,6 +65,9 @@ class DemoScene extends Phaser.Scene {
   private resourceText?: Phaser.GameObjects.Text;
   private carryCapacityText?: Phaser.GameObjects.Text;
   private onlineText?: Phaser.GameObjects.Text;
+  private hudRoot?: Phaser.GameObjects.Container;
+  /** Renders only the HUD at fixed zoom 1 so UI stays pinned to the viewport. */
+  private hudCamera?: Phaser.Cameras.Scene2D.Camera;
   private buildMode?: BuildingKind;
   private targetMarkers = new Map<string, Phaser.GameObjects.Arc>();
   private resourceNodes: ResourceNode[] = [];
@@ -100,6 +103,8 @@ class DemoScene extends Phaser.Scene {
   }
 
   create() {
+    this.setupHudCamera();
+
     this.cameras.main.setBackgroundColor("#B96542");
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -444,40 +449,66 @@ class DemoScene extends Phaser.Scene {
     this.syncDomState();
   }
 
+  private setupHudCamera() {
+    const ui = this.cameras.add(0, 0, this.scale.width, this.scale.height);
+    ui.setScroll(0, 0);
+    ui.setZoom(1);
+    ui.inputEnabled = false;
+    this.hudCamera = ui;
+
+    this.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, (obj: Phaser.GameObjects.GameObject) => {
+      if (obj === this.hudRoot) return;
+      ui.ignore(obj);
+    });
+
+    this.scale.on(Phaser.Scale.Events.RESIZE, () => {
+      ui.setSize(this.scale.width, this.scale.height);
+    });
+  }
+
   private createHud() {
-    const panel = this.add.rectangle(18, 18, 780, 152, 0x17261d, 0.86).setOrigin(0);
-    panel.setScrollFactor(0);
+    // Build HUD off the display list first: each `this.add.*` would otherwise get `ui.ignore` and vanish on the HUD camera.
+    const hud = new Phaser.GameObjects.Container(this, 18, 18);
+    this.hudRoot = hud;
+    hud.setDepth(10_000);
+
+    const panel = new Phaser.GameObjects.Rectangle(this, 0, 0, 780, 152, 0x17261d, 0.86);
+    panel.setOrigin(0);
     panel.setStrokeStyle(2, 0xd7bc73, 0.55);
 
-    this.add.text(36, 30, GAME_TITLE, {
+    const titleText = new Phaser.GameObjects.Text(this, 18, 12, GAME_TITLE, {
       fontFamily: "Georgia, serif",
       fontSize: "24px",
       color: "#f5e5b0",
-    }).setScrollFactor(0);
+    });
 
-    this.resourceText = this.add.text(36, 66, this.formatResources(), {
+    this.resourceText = new Phaser.GameObjects.Text(this, 18, 48, this.formatResources(), {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",
       color: "#d9e4c5",
-    }).setScrollFactor(0);
+    });
 
-    this.carryCapacityText = this.add.text(36, 94, this.formatCarryCapacities(), {
+    this.carryCapacityText = new Phaser.GameObjects.Text(this, 18, 76, this.formatCarryCapacities(), {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       color: "#c8d6b0",
-    }).setScrollFactor(0);
+    });
 
-    this.onlineText = this.add.text(520, 30, "online: conectando...", {
+    this.onlineText = new Phaser.GameObjects.Text(this, 502, 12, "online: conectando...", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       color: "#c8d6b0",
-    }).setScrollFactor(0);
+    });
 
-    this.statusText = this.add.text(36, 122, "Selecciona una unidad.", {
+    this.statusText = new Phaser.GameObjects.Text(this, 18, 104, "Selecciona una unidad.", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",
       color: "#ffffff",
-    }).setScrollFactor(0);
+    });
+
+    hud.add([panel, titleText, this.resourceText, this.carryCapacityText, this.onlineText, this.statusText]);
+    this.add.existing(hud);
+    this.cameras.main.ignore(hud);
   }
 
   private setStatus(message: string) {
@@ -1694,6 +1725,8 @@ class DemoScene extends Phaser.Scene {
       MAX_CAMERA_ZOOM,
     );
     camera.setZoom(nextZoom);
+    camera.scrollX = Phaser.Math.Clamp(camera.scrollX, 0, Math.max(0, WORLD_WIDTH - camera.width / camera.zoom));
+    camera.scrollY = Phaser.Math.Clamp(camera.scrollY, 0, Math.max(0, WORLD_HEIGHT - camera.height / camera.zoom));
     this.setStatus(`Zoom ${Math.round(nextZoom * 100)}%. Q/E o rueda para acercar y alejar.`);
   }
 }
