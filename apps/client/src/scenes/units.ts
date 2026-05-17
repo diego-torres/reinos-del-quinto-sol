@@ -1,10 +1,13 @@
 import Phaser from "phaser";
-import {
-  labelStyle,
-  VILLAGER_ASSET_KEY,
-} from "../art.js";
+import type { CeremonialCenterCulture } from "@reinos/shared";
+import { labelStyle } from "../art.js";
 import { CARRY_CAPACITY, TRAINING, UNIT_STATS, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
 import type { MythicBeast, ResourceNode, UnitCargo, UnitData, UnitKind, UnitWorkState } from "../types.js";
+import {
+  createVillagerSkin,
+  createVillagerVisuals,
+  updateVillagerAnimation,
+} from "../villagerAssets.js";
 import {
   findCeremonialCenterAt,
   findResourceNodeAt,
@@ -33,6 +36,7 @@ import {
   sendOnlineGatherCommand,
   sendOnlineMoveCommand,
 } from "./server.js";
+import { playUnitOrderFeedback, playUnitSelectionFeedback } from "./unitAudio.js";
 
 export function handleRightClick(scene: GameScene, x: number, y: number): void {
   if (!scene.selectedUnit) return;
@@ -43,6 +47,8 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
   const beast = findBeastAt(scene, x, y);
 
   if (beast) {
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    playUnitOrderFeedback(scene, unitData);
     sendSelectedUnitToAttack(scene, unitData, beast);
     return;
   }
@@ -50,14 +56,20 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
   if (center) {
     if (center.ownerId === unitData.ownerId || (!unitData.ownerId && center.ownerId === scene.playerId)) {
       if (scene.onlineMode && sendOnlineDepositCommand(scene, unitData)) {
+        scene.selectedUnit.setData("buildingTarget", undefined);
+        playUnitOrderFeedback(scene, unitData);
         return;
       }
 
+      scene.selectedUnit.setData("buildingTarget", undefined);
+      playUnitOrderFeedback(scene, unitData);
       sendSelectedUnitToManualDeposit(scene, unitData);
       return;
     }
 
     if (scene.onlineMode && sendOnlineAttackCenterCommand(scene, unitData, center)) {
+      scene.selectedUnit.setData("buildingTarget", undefined);
+      playUnitOrderFeedback(scene, unitData);
       return;
     }
 
@@ -72,30 +84,42 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
     }
 
     if (scene.onlineMode && sendOnlineGatherCommand(scene, unitData, resourceNode)) {
+      scene.selectedUnit.setData("buildingTarget", undefined);
+      playUnitOrderFeedback(scene, unitData);
       return;
     }
 
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    playUnitOrderFeedback(scene, unitData);
     sendUnitToGather(scene, scene.selectedUnit, resourceNode);
     return;
   }
 
   if (isPointInCeremonialCenter(scene, x, y)) {
     if (scene.onlineMode && sendOnlineDepositCommand(scene, unitData)) {
+      scene.selectedUnit.setData("buildingTarget", undefined);
+      playUnitOrderFeedback(scene, unitData);
       return;
     }
 
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    playUnitOrderFeedback(scene, unitData);
     sendSelectedUnitToManualDeposit(scene, unitData);
     return;
   }
 
   if (scene.onlineMode && sendOnlineMoveCommand(scene, unitData, x, y)) {
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    playUnitOrderFeedback(scene, unitData);
     return;
   }
 
   scene.selectedUnit.setData("gatherTarget", undefined);
   scene.selectedUnit.setData("gatherElapsed", 0);
   scene.selectedUnit.setData("attackTarget", undefined);
+  scene.selectedUnit.setData("buildingTarget", undefined);
   scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
+  playUnitOrderFeedback(scene, unitData);
   moveSelectedUnit(scene, x, y);
 }
 
@@ -156,6 +180,7 @@ export function updateUnits(scene: GameScene, delta: number): void {
     const workState = child.getData("workState") as UnitWorkState | undefined;
     const attackTarget = child.getData("attackTarget") as MythicBeast | undefined;
     if (!unitData) return true;
+    updateVillagerAnimation(scene, child, delta);
 
     if (attackTarget && !attackTarget.dead) {
       updateUnitAttack(scene, child, unitData, attackTarget, delta);
@@ -205,7 +230,6 @@ export function updateUnits(scene: GameScene, delta: number): void {
     const angle = Phaser.Math.Angle.Between(child.x, child.y, target.x, target.y);
     child.x += Math.cos(angle) * step;
     child.y += Math.sin(angle) * step;
-
     if (child === scene.selectedUnit && scene.selectionRing) {
       scene.selectionRing.setPosition(child.x, child.y + 8);
     }
@@ -217,6 +241,9 @@ export function updateUnits(scene: GameScene, delta: number): void {
 
 export function createUnit(scene: GameScene, x: number, y: number, data: UnitData): Phaser.GameObjects.Container {
   const unit = scene.add.container(x, y);
+  if (data.kind === "aldeano" && !data.skin) {
+    data.skin = createVillagerSkin(data.id, resolveVillagerCulture(scene, data.ownerId));
+  }
   unit.setData("unit", data);
   unit.setData("health", UNIT_STATS[data.kind].maxHealth);
   unit.setData("attackElapsed", 0);
@@ -239,7 +266,10 @@ export function createUnit(scene: GameScene, x: number, y: number, data: UnitDat
   ).setOrigin(0.5);
   const cargoLabel = scene.add.text(0, 68, "", labelStyle(12)).setOrigin(0.5);
 
-  unit.add([...unitVisuals, label, cargoLabel]);
+  unit.add([...unitVisuals.objects, label, cargoLabel]);
+  if (unitVisuals.villagerRig) {
+    unit.setData("villagerRig", unitVisuals.villagerRig);
+  }
   unit.setData("healthLabel", label);
   unit.setData("cargoLabel", cargoLabel);
   updateUnitCargoLabel(scene, unit);
@@ -257,10 +287,12 @@ export function createUnit(scene: GameScene, x: number, y: number, data: UnitDat
 }
 
 function createUnitVisuals(scene: GameScene, data: UnitData) {
-  if (data.kind === "aldeano" && scene.textures.exists(VILLAGER_ASSET_KEY)) {
-    return [
-      scene.add.image(0, 5, VILLAGER_ASSET_KEY).setDisplaySize(72, 72),
-    ];
+  if (data.kind === "aldeano") {
+    const rig = createVillagerVisuals(scene, data);
+    return {
+      objects: [rig.root],
+      villagerRig: rig,
+    };
   }
 
   const shadow = scene.add.ellipse(0, 28, 48, 18, 0x000000, 0.22);
@@ -273,7 +305,9 @@ function createUnitVisuals(scene: GameScene, data: UnitData) {
     ? scene.add.triangle(0, -44, -12, 10, 0, -12, 12, 10, 0x223d63)
     : scene.add.arc(0, -39, 13, 210, 330, false, 0xf0c94a);
 
-  return [shadow, body, head, accent, marker];
+  return {
+    objects: [shadow, body, head, accent, marker],
+  };
 }
 
 export function selectUnit(scene: GameScene, unit: Phaser.GameObjects.Container): void {
@@ -285,6 +319,7 @@ export function selectUnit(scene: GameScene, unit: Phaser.GameObjects.Container)
   unit.setDepth(10);
 
   const unitData = unit.getData("unit") as UnitData;
+  playUnitSelectionFeedback(scene, unitData);
   const hint = unitData.kind === "aldeano"
     ? "Clic derecho en recurso para recolectar. H casa, T telpochcalli."
     : "Clic derecho para mover o atacar el centro enemigo.";
@@ -314,12 +349,18 @@ export function trainVillager(scene: GameScene): void {
       label: "Aldeano",
       color: 0xe5c16f,
       speed: 170,
+      skin: createVillagerSkin(`local:aldeano-${scene.nextUnitId}`, resolveVillagerCulture(scene)),
     });
     scene.isTrainingVillager = false;
     selectUnit(scene, unit);
     scene.setStatus("Aldeano entrenado en el centro ceremonial.");
     scene.updateHudResources();
   });
+}
+
+function resolveVillagerCulture(scene: GameScene, ownerId?: string): CeremonialCenterCulture {
+  const center = scene.ceremonialCenters.find((candidate) => candidate.ownerId === (ownerId ?? scene.playerId));
+  return center?.culture ?? scene.offlineFallbackCenter?.culture ?? "maya";
 }
 
 export function trainWarrior(scene: GameScene): void {

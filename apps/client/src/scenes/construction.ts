@@ -12,6 +12,7 @@ import type { BuildingData, BuildingKind, UnitData, UnitWorkState } from "../typ
 import type { GameScene } from "./gameScene.js";
 import { canAfford, formatCost, spendResources } from "./economy.js";
 import { sendOnlineBuildCommand } from "./server.js";
+import { playUnitOrderFeedback } from "./unitAudio.js";
 
 export function startHousePlacement(scene: GameScene): void {
   if (!scene.selectedUnit) return;
@@ -31,6 +32,7 @@ export function startHousePlacement(scene: GameScene): void {
   scene.selectedUnit.setData("gatherTarget", undefined);
   scene.selectedUnit.setData("gatherElapsed", 0);
   scene.selectedUnit.setData("target", undefined);
+  scene.selectedUnit.setData("buildingTarget", "casa");
   scene.selectedUnit.setData("workState", "idle" satisfies UnitWorkState);
   scene.setStatus(`Modo construccion: casa cuesta ${HOUSE_WOOD_COST} madera. Clic izquierdo para colocar.`);
 }
@@ -53,6 +55,7 @@ export function startTelpochcalliPlacement(scene: GameScene): void {
   scene.selectedUnit.setData("gatherTarget", undefined);
   scene.selectedUnit.setData("gatherElapsed", 0);
   scene.selectedUnit.setData("target", undefined);
+  scene.selectedUnit.setData("buildingTarget", "telpochcalli");
   scene.selectedUnit.setData("workState", "idle" satisfies UnitWorkState);
   scene.setStatus(`Modo construccion: telpochcalli cuesta ${formatCost(TELPOCHCALLI_COST)}. Clic izquierdo para colocar.`);
 }
@@ -84,6 +87,8 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
 
   if (scene.onlineMode && sendOnlineBuildCommand(scene, unitData, scene.buildMode, x, y)) {
     const label = scene.buildMode === "casa" ? "Casa" : "Telpochcalli";
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    playUnitOrderFeedback(scene, unitData);
     cancelBuildMode(scene, `${label} solicitada al servidor.`);
     return;
   }
@@ -99,6 +104,8 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
 
   spendResources(scene, cost);
   scene.populationLimit += building.populationBonus;
+  scene.selectedUnit.setData("buildingTarget", undefined);
+  playUnitOrderFeedback(scene, unitData);
   building.container = building.kind === "casa"
     ? drawHouse(scene, x, y)
     : drawTelpochcalli(scene, x, y);
@@ -111,6 +118,7 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
 }
 
 export function cancelBuildMode(scene: GameScene, message: string): void {
+  scene.selectedUnit?.setData("buildingTarget", undefined);
   scene.buildMode = undefined;
   scene.setStatus(message);
 }

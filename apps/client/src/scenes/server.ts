@@ -258,7 +258,8 @@ export function applyOnlineState(scene: GameScene, state: OnlineGameState): void
   state.units.forEach((unitState) => {
     let unit = scene.findUnitById(unitState.id);
     if (!unit) {
-      unit = scene.createUnit(unitState.x, unitState.y, scene.onlineUnitData(unitState));
+      const culture = state.ceremonialCenters.find((center) => center.ownerId === unitState.ownerId)?.culture;
+      unit = scene.createUnit(unitState.x, unitState.y, scene.onlineUnitData(unitState, culture));
     }
 
     unit.setPosition(unitState.x, unitState.y);

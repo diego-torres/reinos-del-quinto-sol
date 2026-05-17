@@ -4,6 +4,7 @@ import {
   type OnlineBuildingState,
   type OnlineGameState,
   type OnlineUnitState,
+  type CeremonialCenterCulture,
   type Resource,
 } from "@reinos/shared";
 import {
@@ -48,6 +49,7 @@ import mexicaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/mexica
 import tlaxcaltecaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/tlaxcalteca.png";
 import incaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/inca.png";
 import mayaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/maya.png";
+import { createVillagerSkin, preloadVillagerSpriteSheets } from "../villagerAssets.js";
 
 /** Escena principal del juego (mapa, unidades, economía y sincronización online). */
 export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundMusicHost {
@@ -73,6 +75,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     x: number;
     y: number;
     radius: number;
+    culture: CeremonialCenterCulture;
     container: Phaser.GameObjects.Container;
   };
   didInitialCameraFocus = false;
@@ -108,6 +111,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaCeremonialAsset);
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.inca, incaCeremonialAsset);
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.maya, mayaCeremonialAsset);
+    preloadVillagerSpriteSheets(this);
     preloadMusicAssets(this);
   }
 
@@ -257,11 +261,14 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     });
   }
 
-  onlineUnitData(unitState: OnlineUnitState): UnitData {
+  onlineUnitData(unitState: OnlineUnitState, culture: CeremonialCenterCulture = "maya"): UnitData {
     const mine = unitState.ownerId === this.playerId;
     const color = unitState.kind === "aldeano"
       ? mine ? 0xe5c16f : 0x8fd1b5
       : mine ? 0xb84a3b : 0x4b79c4;
+    const skin = unitState.kind === "aldeano"
+      ? createVillagerSkin(`${unitState.ownerId}:${unitState.id}`, culture)
+      : undefined;
 
     return {
       id: unitState.id,
@@ -270,6 +277,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
       color,
       speed: unitState.speed,
       ownerId: unitState.ownerId,
+      skin,
     };
   }
 

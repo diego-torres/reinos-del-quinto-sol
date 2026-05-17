@@ -89,6 +89,8 @@ npm run dev --workspace @reinos/client -- --host 127.0.0.1 --port 5173
 - Guarda assets fuente en `assets/`.
 - No agregues assets con licencia desconocida.
 - Si usas assets externos, deben ser compatibles con la licencia del proyecto y tener atribucion documentada.
+- Para aldeanos, conserva el contrato de cultura + variante estetica documentado en `docs/diseno/aldeanos-arte-audio.md`; las variantes no deben alterar mecanicas.
+- Si reemplazas audio procedural por grabaciones, documenta fuente, autor, licencia y modificaciones en `assets/audio/`.
 
 ## Git
 

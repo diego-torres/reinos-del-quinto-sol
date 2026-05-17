@@ -35,6 +35,10 @@ assets/
 - Node.js para servidor
 - WebSocket o Colyseus para multiplayer
 
+## Pipeline visual y audio de aldeanos
+
+El cliente carga hojas PNG para aldeanos por cultura desde `assets/sprites/aldeanos/`, con variantes masculino/femenina solo esteticas y audio procedural de seleccion/orden. El formato de grilla, fallback procedural y decisiones de licencia quedan documentados en `docs/diseno/aldeanos-arte-audio.md`.
+
 ## Licencia
 
 Propuesta inicial:
@@ -43,4 +47,3 @@ Propuesta inicial:
 - Assets y documentacion: CC BY-SA 4.0
 
 La licencia definitiva debe confirmarse antes de aceptar contribuciones externas.
-

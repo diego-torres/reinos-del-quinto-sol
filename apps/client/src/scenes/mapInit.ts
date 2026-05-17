@@ -4,6 +4,7 @@ import {
 } from "@reinos/shared";
 import { createCamazotz, drawCeremonialCenter, drawResourceClusters, drawTerrain } from "../art.js";
 import { CEREMONIAL_CENTER, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
+import { createVillagerSkin } from "../villagerAssets.js";
 import {
   createExplorationFog,
   redrawExplorationFogIfDirty,
@@ -20,12 +21,15 @@ export function bootstrapOfflineStartingArea(scene: GameScene): void {
   const mapMargin = 480;
   const cx = mapMargin + Math.random() * (WORLD_WIDTH - mapMargin * 2);
   const cy = mapMargin + Math.random() * (WORLD_HEIGHT - mapMargin * 2);
-  const offlineCulture = CEREMONIAL_CENTER_CULTURES[Math.floor(Math.random() * CEREMONIAL_CENTER_CULTURES.length)]!;
-  const centerContainer = drawCeremonialCenter(scene, cx, cy, normalizeCeremonialCenterCulture(offlineCulture));
+  const offlineCulture = normalizeCeremonialCenterCulture(
+    CEREMONIAL_CENTER_CULTURES[Math.floor(Math.random() * CEREMONIAL_CENTER_CULTURES.length)]!,
+  );
+  const centerContainer = drawCeremonialCenter(scene, cx, cy, offlineCulture);
   scene.offlineFallbackCenter = {
     x: cx,
     y: cy,
     radius: CEREMONIAL_CENTER.depositRadius,
+    culture: offlineCulture,
     container: centerContainer,
   };
 
@@ -47,6 +51,7 @@ export function bootstrapOfflineStartingArea(scene: GameScene): void {
     label: "Aldeano",
     color: 0xe5c16f,
     speed: 170,
+    skin: createVillagerSkin("offline:aldeano-1", offlineCulture),
   });
 
   scene.createUnit(startX + 100, startY + 70, {
