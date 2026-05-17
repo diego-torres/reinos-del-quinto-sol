@@ -13,6 +13,7 @@ export function installDebugApi(scene: GameScene): void {
     getResourceNodes: () => scene.resourceNodes.map((node: ResourceNode) => ({
       id: node.id,
       resource: node.resource,
+      foodSource: node.foodSource,
       label: node.label,
       amount: node.amount,
       depleted: node.depleted,

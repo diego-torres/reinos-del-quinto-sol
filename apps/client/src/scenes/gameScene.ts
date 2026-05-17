@@ -1,10 +1,11 @@
 import Phaser from "phaser";
 import {
   RESOURCES,
+  type CeremonialCenterCulture,
+  type FoodSource,
   type OnlineBuildingState,
   type OnlineGameState,
   type OnlineUnitState,
-  type CeremonialCenterCulture,
   type Resource,
 } from "@reinos/shared";
 import {
@@ -12,7 +13,7 @@ import {
   HOUSE_ASSET_KEY,
   VILLAGER_ASSET_KEY,
 } from "../art.js";
-import { CARRY_CAPACITY, HOUSE_POPULATION_BONUS, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH } from "../rules.js";
+import { CARRY_CAPACITY, HOUSE_POPULATION_BONUS, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH, formatResourceName } from "../rules.js";
 import type {
   BuildingData,
   BuildingKind,
@@ -96,7 +97,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
   population = 2;
   populationLimit = 5;
   resources: Record<Resource, number> = {
-    maiz: 200,
+    alimento: 200,
     madera: 200,
     piedra: 200,
     obsidiana: 200,
@@ -158,8 +159,9 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     radius: number,
     text: Phaser.GameObjects.Text,
     visuals: Phaser.GameObjects.GameObject[],
+    foodSource?: FoodSource,
   ): void {
-    registerResourceNodeEconomy(this, id, resource, label, x, y, radius, text, visuals);
+    registerResourceNodeEconomy(this, id, resource, label, x, y, radius, text, visuals, foodSource);
   }
 
   pickWorldPointAwayFrom(ox: number, oy: number, minDist: number, margin: number): { x: number; y: number } {
@@ -216,12 +218,12 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
   }
 
   formatResources(): string {
-    const resourceValues = RESOURCES.map((resource) => `${resource}: ${this.resources[resource]}`).join("   ");
+    const resourceValues = RESOURCES.map((resource) => `${formatResourceName(resource)}: ${this.resources[resource]}`).join("   ");
     return `${resourceValues}   poblacion: ${this.population}/${this.populationLimit}   V aldeano   G guerrero`;
   }
 
   formatCarryCapacities(): string {
-    return `capacidad aldeano: ${RESOURCES.map((resource) => `${resource} ${CARRY_CAPACITY[resource]}`).join("   ")}`;
+    return `capacidad aldeano: ${RESOURCES.map((resource) => `${formatResourceName(resource)} ${CARRY_CAPACITY[resource]}`).join("   ")}`;
   }
 
   updateHudResources(): void {

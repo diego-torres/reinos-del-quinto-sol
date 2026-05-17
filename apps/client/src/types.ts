@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import type {
   CeremonialCenterCulture,
+  FoodSource,
   OnlineBuildingKind,
   OnlineCeremonialCenterState,
   Resource,
@@ -43,6 +44,7 @@ export type ResourceNode = {
   id: string;
   resource: Resource;
   label: string;
+  foodSource?: FoodSource;
   x: number;
   y: number;
   radius: number;

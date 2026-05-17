@@ -46,7 +46,7 @@ Civilizaciones futuras:
 
 Recursos propuestos para diferenciarlo del modelo generico:
 
-- **Maiz**: alimento principal.
+- **Alimento**: recurso principal (milpa, caza y otras fuentes en datos; un solo contador en MVP).
 - **Madera**: construccion y herramientas.
 - **Piedra**: templos, defensas y edificios avanzados.
 - **Obsidiana**: armas, elite militar y comercio.
@@ -54,7 +54,7 @@ Recursos propuestos para diferenciarlo del modelo generico:
 
 Para el MVP conviene usar solo 4 recursos:
 
-- Maiz
+- Alimento
 - Madera
 - Piedra
 - Obsidiana
@@ -102,7 +102,7 @@ Incluye:
 - Una civilizacion inicial, probablemente Maya.
 - Centro ceremonial como edificio principal.
 - Aldeanos.
-- Recoleccion de maiz, madera, piedra y obsidiana.
+- Recoleccion de alimento, madera, piedra y obsidiana.
 - Casas para limite de poblacion.
 - Cuartel o casa de guerreros.
 - Una unidad militar basica.

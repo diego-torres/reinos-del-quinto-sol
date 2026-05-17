@@ -7,6 +7,7 @@ import type { GameScene } from "./gameScene.js";
 import {
   CEREMONIAL_CENTER_POINTER_RADIUS_PX,
   CONSTRUCTION_SITE_POINTER_RADIUS_PX,
+  formatResourceName,
   getResourcePointerHitRadiusPx,
 } from "../rules.js";
 
@@ -53,7 +54,7 @@ export function setupPointerHover(scene: GameScene): void {
       const r = getResourcePointerHitRadiusPx(node.radius);
       ring.lineStyle(3, 0xf5d76e, 0.95);
       ring.strokeCircle(node.x, node.y, r);
-      hint.setText(`${node.label} · ${node.resource} (${node.amount})`);
+      hint.setText(`${node.label} · ${formatResourceName(node.resource)} (${node.amount})`);
       hint.setVisible(true);
       scene.input.setDefaultCursor("pointer");
       return;

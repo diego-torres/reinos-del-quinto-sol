@@ -42,7 +42,7 @@ Convertir el prototipo en una partida pequena.
 Incluye:
 
 - Aldeanos.
-- Recoleccion de maiz, madera, piedra y obsidiana.
+- Recoleccion de alimento (milpa y caza en mapa), madera, piedra y obsidiana.
 - Centro ceremonial.
 - Casas.
 - Produccion de unidades.

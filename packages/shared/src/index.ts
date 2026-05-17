@@ -1,8 +1,13 @@
 export const GAME_TITLE = "Reinos del Quinto Sol";
 
-export const RESOURCES = ["maiz", "madera", "piedra", "obsidiana"] as const;
+export const RESOURCES = ["alimento", "madera", "piedra", "obsidiana"] as const;
 
 export type Resource = (typeof RESOURCES)[number];
+
+/** Origen jugable del recurso alimento (un solo contador; se distingue en datos y mapa). */
+export const FOOD_SOURCES = ["milpa", "caza"] as const;
+
+export type FoodSource = (typeof FOOD_SOURCES)[number];
 
 /**
  * Escala lineal del mundo respecto al prototipo base (6800×4500).
@@ -135,6 +140,8 @@ export type OnlineResourceNodeState = {
   id: string;
   resource: Resource;
   label: string;
+  /** Solo cuando resource es "alimento"; indica milpa/maizal o cacería. */
+  foodSource?: FoodSource;
   x: number;
   y: number;
   radius: number;
@@ -191,19 +198,21 @@ export type OnlineGameState = {
 const INITIAL_RESOURCE_NODE_AMOUNT = 500;
 
 /** Blueprint row-major on a 6x3 grid covering the whole map (ids stable for cliente/servidor). */
-const INITIAL_RESOURCE_BLUEPRINTS: Array<Pick<OnlineResourceNodeState, "id" | "resource" | "label" | "radius">> = [
-  { id: "maiz-1", resource: "maiz", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
-  { id: "maiz-2", resource: "maiz", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
-  { id: "maiz-3", resource: "maiz", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
+const INITIAL_RESOURCE_BLUEPRINTS: Array<
+  Pick<OnlineResourceNodeState, "id" | "resource" | "label" | "radius" | "foodSource">
+> = [
+  { id: "maiz-1", resource: "alimento", foodSource: "milpa", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
+  { id: "maiz-2", resource: "alimento", foodSource: "milpa", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
+  { id: "maiz-3", resource: "alimento", foodSource: "milpa", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
   { id: "madera-4", resource: "madera", label: "Bosque", radius: 118 * WORLD_LINEAR_SCALE },
   { id: "madera-5", resource: "madera", label: "Bosque", radius: 118 * WORLD_LINEAR_SCALE },
   { id: "piedra-6", resource: "piedra", label: "Piedra", radius: 74 * WORLD_LINEAR_SCALE },
   { id: "piedra-7", resource: "piedra", label: "Piedra", radius: 74 * WORLD_LINEAR_SCALE },
   { id: "obsidiana-8", resource: "obsidiana", label: "Obsidiana", radius: 72 * WORLD_LINEAR_SCALE },
   { id: "obsidiana-9", resource: "obsidiana", label: "Obsidiana", radius: 72 * WORLD_LINEAR_SCALE },
-  { id: "maiz-10", resource: "maiz", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
-  { id: "maiz-11", resource: "maiz", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
-  { id: "maiz-12", resource: "maiz", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
+  { id: "maiz-10", resource: "alimento", foodSource: "caza", label: "Zona de caza", radius: 94 * WORLD_LINEAR_SCALE },
+  { id: "maiz-11", resource: "alimento", foodSource: "caza", label: "Zona de caza", radius: 94 * WORLD_LINEAR_SCALE },
+  { id: "maiz-12", resource: "alimento", foodSource: "milpa", label: "Maizal", radius: 94 * WORLD_LINEAR_SCALE },
   { id: "madera-13", resource: "madera", label: "Bosque", radius: 118 * WORLD_LINEAR_SCALE },
   { id: "madera-14", resource: "madera", label: "Bosque", radius: 118 * WORLD_LINEAR_SCALE },
   { id: "piedra-15", resource: "piedra", label: "Piedra", radius: 74 * WORLD_LINEAR_SCALE },

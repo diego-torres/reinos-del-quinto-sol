@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { UNIT_MOVE_ARRIVAL_EPS_PX, type CeremonialCenterCulture } from "@reinos/shared";
 import { labelStyle } from "../art.js";
-import { CARRY_CAPACITY, TRAINING, UNIT_STATS, WORLD_EDGE_MARGIN, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH } from "../rules.js";
+import { CARRY_CAPACITY, TRAINING, UNIT_STATS, WORLD_EDGE_MARGIN, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH, formatResourceName } from "../rules.js";
 import type { MythicBeast, ResourceNode, UnitCargo, UnitData, UnitKind, UnitWorkState } from "../types.js";
 import {
   createVillagerSkin,
@@ -511,5 +511,5 @@ export function updateUnitCargoLabel(scene: GameScene, unit: Phaser.GameObjects.
     return;
   }
 
-  cargoLabel.setText(`${cargo.resource} ${cargo.amount}/${CARRY_CAPACITY[cargo.resource]}`);
+  cargoLabel.setText(`${formatResourceName(cargo.resource)} ${cargo.amount}/${CARRY_CAPACITY[cargo.resource]}`);
 }

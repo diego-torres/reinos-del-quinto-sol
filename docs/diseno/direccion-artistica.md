@@ -101,6 +101,6 @@ Primer paquete de arte:
 1. Hoja de siluetas de aldeano y guerrero.
 2. Vista top-down del centro ceremonial.
 3. Tiles de pasto, tierra, agua y bosque.
-4. Iconos simples para maiz, madera, piedra y obsidiana.
+4. Iconos simples para alimento, madera, piedra y obsidiana.
 
 El arte debe integrarse rapido al juego, aunque sea provisional.

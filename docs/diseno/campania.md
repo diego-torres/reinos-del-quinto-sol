@@ -57,7 +57,7 @@ Funcion:
 Objetivo:
 
 - Fundar un asentamiento.
-- Recolectar maiz y madera.
+- Recolectar alimento y madera.
 - Construir casas.
 - Levantar el centro ceremonial.
 

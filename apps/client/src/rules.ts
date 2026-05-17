@@ -35,11 +35,23 @@ export function getResourcePointerHitRadiusPx(gameplayRadius: number): number {
 }
 
 export const CARRY_CAPACITY: Record<Resource, number> = {
-  maiz: 30,
+  alimento: 30,
   madera: 25,
   piedra: 20,
   obsidiana: 15,
 };
+
+/** Etiqueta en español para HUD, tooltips y mensajes (el id interno sigue siendo `Resource`). */
+export const RESOURCE_DISPLAY_NAME: Record<Resource, string> = {
+  alimento: "alimento",
+  madera: "madera",
+  piedra: "piedra",
+  obsidiana: "obsidiana",
+};
+
+export function formatResourceName(resource: Resource): string {
+  return RESOURCE_DISPLAY_NAME[resource];
+}
 
 export const HOUSE_WOOD_COST = 50;
 export const HOUSE_POPULATION_BONUS = 5;
@@ -67,13 +79,13 @@ export const UNIT_STATS: Record<UnitKind, UnitStats> = {
 export const TRAINING: Record<UnitKind, TrainingDefinition> = {
   aldeano: {
     label: "Aldeano",
-    cost: { maiz: 50 },
+    cost: { alimento: 50 },
     population: 1,
     durationMs: 1400,
   },
   guerrero: {
     label: "Guerrero",
-    cost: { maiz: 60, obsidiana: 20 },
+    cost: { alimento: 60, obsidiana: 20 },
     population: 1,
     durationMs: 1700,
   },

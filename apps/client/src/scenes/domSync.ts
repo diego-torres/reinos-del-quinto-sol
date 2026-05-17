@@ -93,12 +93,16 @@ export function collectDebugCeremonialCenters(scene: GameScene): DebugCeremonial
 
 export function syncDomState(scene: GameScene): void {
   document.body.dataset.resources = JSON.stringify(scene.resources);
-  document.body.dataset.resourceNodes = JSON.stringify(scene.resourceNodes.map((node: ResourceNode) => ({
-    id: node.id,
-    resource: node.resource,
-    amount: node.amount,
-    depleted: node.depleted,
-  })));
+  document.body.dataset.resourceNodes = JSON.stringify(scene.resourceNodes.map((node: ResourceNode) => {
+    const row: Record<string, unknown> = {
+      id: node.id,
+      resource: node.resource,
+      amount: node.amount,
+      depleted: node.depleted,
+    };
+    if (node.foodSource) row.foodSource = node.foodSource;
+    return row;
+  }));
   document.body.dataset.population = JSON.stringify({
     current: scene.population,
     limit: scene.populationLimit,

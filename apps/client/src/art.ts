@@ -1,5 +1,11 @@
 import Phaser from "phaser";
-import type { CeremonialCenterCulture, OnlineBuildingKind, OnlineResourceNodeState, Resource } from "@reinos/shared";
+import type {
+  CeremonialCenterCulture,
+  FoodSource,
+  OnlineBuildingKind,
+  OnlineResourceNodeState,
+  Resource,
+} from "@reinos/shared";
 import { createInitialResourceNodes, normalizeCeremonialCenterCulture, WORLD_LINEAR_SCALE } from "@reinos/shared";
 import type { MythicBeast } from "./types.js";
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
@@ -40,6 +46,7 @@ type RegisterResourceNode = (
   radius: number,
   text: Phaser.GameObjects.Text,
   visuals: Phaser.GameObjects.GameObject[],
+  foodSource?: FoodSource,
 ) => void;
 
 export function labelStyle(fontSize = 14): Phaser.Types.GameObjects.Text.TextStyle {
@@ -76,8 +83,10 @@ export function drawTerrain(scene: Phaser.Scene) {
 
 export function drawResourceClusters(scene: Phaser.Scene, registerResourceNode: RegisterResourceNode) {
   for (const node of createInitialResourceNodes()) {
-    if (node.resource === "maiz") drawMaizeField(scene, node, registerResourceNode);
-    else if (node.resource === "madera") drawForest(scene, node, registerResourceNode);
+    if (node.resource === "alimento") {
+      if (node.foodSource === "caza") drawHuntingGround(scene, node, registerResourceNode);
+      else drawMaizeField(scene, node, registerResourceNode);
+    } else if (node.resource === "madera") drawForest(scene, node, registerResourceNode);
     else if (node.resource === "piedra") drawStoneOutcrop(scene, node, registerResourceNode);
     else drawObsidianDeposit(scene, node, registerResourceNode);
   }
@@ -271,12 +280,34 @@ export function createCamazotz(
     dormant: true,
     dead: false,
     reward: {
-      maiz: 100,
+      alimento: 100,
       piedra: 80,
       obsidiana: 50,
     },
     healthText,
   };
+}
+
+function drawHuntingGround(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {
+  const x = node.x - 52 * M;
+  const y = node.y - 40 * M;
+  const group = scene.add.container(x, y);
+  group.add(
+    scene.add.ellipse(56 * M, 40 * M, 120 * M, 88 * M, 0xc4a574, 0.85).setStrokeStyle(2, 0x6b4a32, 0.7),
+  );
+  for (let i = 0; i < 9; i++) {
+    const px = 22 * M + (i % 3) * 34 * M;
+    const py = 18 * M + Math.floor(i / 3) * 30 * M;
+    group.add(scene.add.ellipse(px, py, 10 * M, 6 * M, 0x8b5e3c, 0.75));
+    group.add(scene.add.ellipse(px + 4 * M, py - 3 * M, 4 * M, 4 * M, 0x4a3224, 0.6));
+  }
+  for (let i = 0; i < 8; i++) {
+    const px = 10 * M + (i % 4) * 28 * M + ((i * 7) % 12) * M;
+    const py = 52 * M + Math.floor(i / 4) * 12 * M;
+    group.add(scene.add.rectangle(px, py, 3 * M, 1.5 * M, 0x5c3d28, 0.65));
+  }
+  const label = scene.add.text(x + 52 * M, y + 98 * M, node.label, labelStyle()).setOrigin(0.5);
+  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [group, label], node.foodSource);
 }
 
 function drawMaizeField(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {
@@ -291,7 +322,7 @@ function drawMaizeField(scene: Phaser.Scene, node: OnlineResourceNodeState, regi
     group.add([stalk, cob]);
   }
   const label = scene.add.text(x - 8 * M, y + 92 * M, node.label, labelStyle()).setOrigin(0.5);
-  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [group, label]);
+  registerResourceNode(node.id, node.resource, node.label, node.x, node.y, node.radius, label, [group, label], node.foodSource);
 }
 
 function drawForest(scene: Phaser.Scene, node: OnlineResourceNodeState, registerResourceNode: RegisterResourceNode) {

@@ -44,7 +44,7 @@ const state: OnlineGameState = {
 };
 
 const CARRY_CAPACITY: Record<Resource, number> = {
-  maiz: 30,
+  alimento: 30,
   madera: 25,
   piedra: 20,
   obsidiana: 15,
@@ -102,7 +102,7 @@ function assignPlayer(socket: WebSocket) {
     id: playerId,
     slot: state.players.length + 1,
     resources: {
-      maiz: 200,
+      alimento: 200,
       madera: 200,
       piedra: 200,
       obsidiana: 200,

@@ -4,6 +4,7 @@ import {
   GATHER_APPROACH_OFFSET_PX,
   GATHER_MAX_DISTANCE_BEYOND_RADIUS_PX,
   RESOURCES,
+  type FoodSource,
   type Resource,
 } from "@reinos/shared";
 import {
@@ -13,6 +14,7 @@ import {
   GATHER_AMOUNT,
   GATHER_INTERVAL_MS,
   WORLD_LINEAR_SCALE,
+  formatResourceName,
   getResourcePointerHitRadiusPx,
 } from "../rules.js";
 import type {
@@ -34,11 +36,13 @@ export function registerResourceNode(
   radius: number,
   text: Phaser.GameObjects.Text,
   visuals: Phaser.GameObjects.GameObject[],
+  foodSource?: FoodSource,
 ): void {
   const node: ResourceNode = {
     id,
     resource,
     label,
+    foodSource,
     x,
     y,
     radius,
@@ -120,7 +124,7 @@ export function updateGathering(
   scene.updateUnitCargoLabel(unit);
   scene.syncDomState();
   updateResourceNodeLabel(scene, node);
-  scene.pulseResourceGain(unit.x, unit.y - 42 * WORLD_LINEAR_SCALE, `carga +${gathered} ${node.resource}`);
+  scene.pulseResourceGain(unit.x, unit.y - 42 * WORLD_LINEAR_SCALE, `carga +${gathered} ${formatResourceName(node.resource)}`);
 
   const updatedCargo = scene.getUnitCargo(unit);
   if (updatedCargo.amount >= capacity || node.amount <= 0) {
@@ -151,8 +155,8 @@ export function updateDeposit(scene: GameScene, unit: Phaser.GameObjects.Contain
   }
 
   scene.resources[cargo.resource] += cargo.amount;
-  scene.pulseResourceGain(unit.x, unit.y - 46 * WORLD_LINEAR_SCALE, `+${cargo.amount} ${cargo.resource}`);
-  scene.setStatus(`${unitData.label} deposito ${cargo.amount} ${cargo.resource}.`);
+  scene.pulseResourceGain(unit.x, unit.y - 46 * WORLD_LINEAR_SCALE, `+${cargo.amount} ${formatResourceName(cargo.resource)}`);
+  scene.setStatus(`${unitData.label} deposito ${cargo.amount} ${formatResourceName(cargo.resource)}.`);
   unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
   unit.setData("gatherElapsed", 0);
   scene.updateUnitCargoLabel(unit);
@@ -201,7 +205,7 @@ export function sendSelectedUnitToManualDeposit(scene: GameScene, unitData: Unit
 
   scene.selectedUnit.setData("gatherTarget", undefined);
   sendUnitToDepositPoint(scene, scene.selectedUnit, "idle");
-  scene.setStatus(`${unitData.label} va al centro ceremonial para depositar ${cargo.amount} ${cargo.resource}.`);
+  scene.setStatus(`${unitData.label} va al centro ceremonial para depositar ${cargo.amount} ${formatResourceName(cargo.resource)}.`);
 }
 
 export function sendUnitToDepositPoint(scene: GameScene, unit: Phaser.GameObjects.Container, depositAfter: DepositAfter): void {
@@ -229,8 +233,8 @@ export function updateManualDeposit(scene: GameScene, unit: Phaser.GameObjects.C
   }
 
   scene.resources[cargo.resource] += cargo.amount;
-  scene.pulseResourceGain(unit.x, unit.y - 46 * WORLD_LINEAR_SCALE, `+${cargo.amount} ${cargo.resource}`);
-  scene.setStatus(`${unitData.label} deposito ${cargo.amount} ${cargo.resource}.`);
+  scene.pulseResourceGain(unit.x, unit.y - 46 * WORLD_LINEAR_SCALE, `+${cargo.amount} ${formatResourceName(cargo.resource)}`);
+  scene.setStatus(`${unitData.label} deposito ${cargo.amount} ${formatResourceName(cargo.resource)}.`);
   unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
   unit.setData("workState", "idle" satisfies UnitWorkState);
   unit.setData("depositAfter", undefined);
@@ -304,6 +308,6 @@ export function spendResources(scene: GameScene, cost: Partial<Record<Resource, 
 export function formatCost(cost: Partial<Record<Resource, number>>): string {
   return RESOURCES
     .filter((resource) => (cost[resource] ?? 0) > 0)
-    .map((resource) => `${cost[resource]} ${resource}`)
+    .map((resource) => `${cost[resource]} ${formatResourceName(resource)}`)
     .join(", ");
 }
