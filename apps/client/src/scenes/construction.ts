@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { getBuildingConstructionTotalWork } from "@reinos/shared";
+import { getBuildingPlacementExclusionRadius, getBuildingResourceClearance } from "@reinos/shared";
 import {
   HOUSE_POPULATION_BONUS,
   HOUSE_WOOD_COST,
   TELPOCHCALLI_COST,
+  WORLD_EDGE_MARGIN,
   WORLD_HEIGHT,
   WORLD_WIDTH,
   getBuildingCost,
@@ -138,12 +140,19 @@ export function cancelBuildMode(scene: GameScene, message: string): void {
 }
 
 export function canPlaceBuildingAt(scene: GameScene, x: number, y: number, kind: BuildingKind): boolean {
-  if (x < 80 || y < 80 || x > WORLD_WIDTH - 80 || y > WORLD_HEIGHT - 80) return false;
+  if (
+    x < WORLD_EDGE_MARGIN ||
+    y < WORLD_EDGE_MARGIN ||
+    x > WORLD_WIDTH - WORLD_EDGE_MARGIN ||
+    y > WORLD_HEIGHT - WORLD_EDGE_MARGIN
+  ) {
+    return false;
+  }
 
-  const buildingRadius = kind === "casa" ? 112 : 146;
+  const buildingRadius = getBuildingPlacementExclusionRadius(kind);
   const nearResource = scene.resourceNodes.some((node) => {
     if (node.depleted) return false;
-    return Phaser.Math.Distance.Between(x, y, node.x, node.y) < node.radius + (kind === "casa" ? 54 : 82);
+    return Phaser.Math.Distance.Between(x, y, node.x, node.y) < node.radius + getBuildingResourceClearance(kind);
   });
   if (nearResource) return false;
 

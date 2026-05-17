@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { UNIT_EXPLORATION_VISION_RADIUS_PX, type OnlineUnitKind } from "@reinos/shared";
+import { UNIT_EXPLORATION_VISION_RADIUS_PX, WORLD_LINEAR_SCALE, type OnlineUnitKind } from "@reinos/shared";
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
 import type { UnitData } from "../types.js";
 
@@ -85,7 +85,7 @@ export type FogSceneHost = Phaser.Scene & {
 
 /** Revela el área del centro ceremonial que pertenece al jugador local (o el centro offline). */
 export function revealOwnedCeremonialAreasForLocalPlayer(scene: FogSceneHost): void {
-  const extraPad = 48;
+  const extraPad = 48 * WORLD_LINEAR_SCALE;
   const hasServerCenter =
     !!scene.playerId && scene.ceremonialCenters.some((c) => c.ownerId === scene.playerId);
 

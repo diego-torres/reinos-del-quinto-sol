@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
+import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH } from "../rules.js";
 import type { GameScene } from "./gameScene.js";
 
 export function pickWorldPointAwayFrom(ox: number, oy: number, minDist: number, margin: number): { x: number; y: number } {
@@ -8,7 +8,7 @@ export function pickWorldPointAwayFrom(ox: number, oy: number, minDist: number, 
     const y = margin + Math.random() * (WORLD_HEIGHT - margin * 2);
     if (Math.hypot(x - ox, y - oy) >= minDist) return { x, y };
   }
-  return { x: margin + 120, y: margin + 120 };
+  return { x: margin + 120 * WORLD_LINEAR_SCALE, y: margin + 120 * WORLD_LINEAR_SCALE };
 }
 
 export function focusCameraOnWorldPoint(scene: GameScene, x: number, y: number): void {
@@ -28,7 +28,7 @@ export function maybeFocusCameraOnOwnCenter(scene: GameScene): void {
 
 export function updateCamera(scene: GameScene, delta: number): void {
   const camera = scene.cameras.main;
-  const speed = (620 / camera.zoom) * (delta / 1000);
+  const speed = ((620 * WORLD_LINEAR_SCALE) / camera.zoom) * (delta / 1000);
   const left = scene.cursors?.left?.isDown || scene.wasd?.A?.isDown;
   const right = scene.cursors?.right?.isDown || scene.wasd?.D?.isDown;
   const up = scene.cursors?.up?.isDown || scene.wasd?.W?.isDown;

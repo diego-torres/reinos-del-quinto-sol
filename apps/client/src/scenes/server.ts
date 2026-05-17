@@ -1,6 +1,7 @@
 import {
   CEREMONIAL_CENTER_CULTURES,
   normalizeCeremonialCenterCulture,
+  WORLD_LINEAR_SCALE,
   type CeremonialCenterCulture,
   type ClientMessage,
   type OnlineGameState,
@@ -327,7 +328,7 @@ export function applyOnlineState(scene: GameScene, state: OnlineGameState): void
   }
 
   if (scene.selectedUnit && scene.selectionRing) {
-    scene.selectionRing.setPosition(scene.selectedUnit.x, scene.selectedUnit.y + 8);
+    scene.selectionRing.setPosition(scene.selectedUnit.x, scene.selectedUnit.y + 8 * WORLD_LINEAR_SCALE);
   }
 
   applyOnlineResources(scene, state);

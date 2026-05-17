@@ -1,6 +1,20 @@
 import Phaser from "phaser";
-import { RESOURCES, type Resource } from "@reinos/shared";
-import { CARRY_CAPACITY, CEREMONIAL_CENTER, GATHER_AMOUNT, GATHER_INTERVAL_MS } from "../rules.js";
+import {
+  DEPOSIT_APPROACH_INSET_PX,
+  GATHER_APPROACH_OFFSET_PX,
+  GATHER_MAX_DISTANCE_BEYOND_RADIUS_PX,
+  RESOURCES,
+  type Resource,
+} from "@reinos/shared";
+import {
+  CARRY_CAPACITY,
+  CEREMONIAL_CENTER,
+  CEREMONIAL_CENTER_POINTER_RADIUS_PX,
+  GATHER_AMOUNT,
+  GATHER_INTERVAL_MS,
+  WORLD_LINEAR_SCALE,
+  getResourcePointerHitRadiusPx,
+} from "../rules.js";
 import type {
   DepositAfter,
   ResourceNode,
@@ -41,14 +55,15 @@ export function registerResourceNode(
 export function findResourceNodeAt(scene: GameScene, x: number, y: number): ResourceNode | undefined {
   return scene.resourceNodes.find((node) => {
     if (node.depleted || node.amount <= 0) return false;
+    const pickR = getResourcePointerHitRadiusPx(node.radius);
     const distance = Phaser.Math.Distance.Between(x, y, node.x, node.y);
-    return distance <= node.radius;
+    return distance <= pickR;
   });
 }
 
 export function getGatherApproachPoint(unit: Phaser.GameObjects.Container, node: ResourceNode): Phaser.Math.Vector2 {
   const angle = Phaser.Math.Angle.Between(node.x, node.y, unit.x, unit.y);
-  const distance = node.radius + 26;
+  const distance = node.radius + GATHER_APPROACH_OFFSET_PX;
   return new Phaser.Math.Vector2(
     node.x + Math.cos(angle) * distance,
     node.y + Math.sin(angle) * distance,
@@ -70,7 +85,7 @@ export function updateGathering(
   }
 
   const distance = Phaser.Math.Distance.Between(unit.x, unit.y, node.x, node.y);
-  if (distance > node.radius + 42) {
+  if (distance > node.radius + GATHER_MAX_DISTANCE_BEYOND_RADIUS_PX) {
     unit.setData("target", getGatherApproachPoint(unit, node));
     unit.setData("workState", "moving" satisfies UnitWorkState);
     return;
@@ -105,7 +120,7 @@ export function updateGathering(
   scene.updateUnitCargoLabel(unit);
   scene.syncDomState();
   updateResourceNodeLabel(scene, node);
-  scene.pulseResourceGain(unit.x, unit.y - 42, `carga +${gathered} ${node.resource}`);
+  scene.pulseResourceGain(unit.x, unit.y - 42 * WORLD_LINEAR_SCALE, `carga +${gathered} ${node.resource}`);
 
   const updatedCargo = scene.getUnitCargo(unit);
   if (updatedCargo.amount >= capacity || node.amount <= 0) {
@@ -136,7 +151,7 @@ export function updateDeposit(scene: GameScene, unit: Phaser.GameObjects.Contain
   }
 
   scene.resources[cargo.resource] += cargo.amount;
-  scene.pulseResourceGain(unit.x, unit.y - 46, `+${cargo.amount} ${cargo.resource}`);
+  scene.pulseResourceGain(unit.x, unit.y - 46 * WORLD_LINEAR_SCALE, `+${cargo.amount} ${cargo.resource}`);
   scene.setStatus(`${unitData.label} deposito ${cargo.amount} ${cargo.resource}.`);
   unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
   unit.setData("gatherElapsed", 0);
@@ -163,7 +178,7 @@ export function finishDepositOrder(scene: GameScene, unit: Phaser.GameObjects.Co
 export function getDepositApproachPoint(unit: Phaser.GameObjects.Container, scene: GameScene): Phaser.Math.Vector2 {
   const center = getOwnCeremonialCenter(scene);
   const angle = Phaser.Math.Angle.Between(center.x, center.y, unit.x, unit.y);
-  const distance = center.radius - 28;
+  const distance = center.radius - DEPOSIT_APPROACH_INSET_PX;
   return new Phaser.Math.Vector2(
     center.x + Math.cos(angle) * distance,
     center.y + Math.sin(angle) * distance,
@@ -214,7 +229,7 @@ export function updateManualDeposit(scene: GameScene, unit: Phaser.GameObjects.C
   }
 
   scene.resources[cargo.resource] += cargo.amount;
-  scene.pulseResourceGain(unit.x, unit.y - 46, `+${cargo.amount} ${cargo.resource}`);
+  scene.pulseResourceGain(unit.x, unit.y - 46 * WORLD_LINEAR_SCALE, `+${cargo.amount} ${cargo.resource}`);
   scene.setStatus(`${unitData.label} deposito ${cargo.amount} ${cargo.resource}.`);
   unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
   unit.setData("workState", "idle" satisfies UnitWorkState);
@@ -225,12 +240,15 @@ export function updateManualDeposit(scene: GameScene, unit: Phaser.GameObjects.C
 
 export function isPointInCeremonialCenter(scene: GameScene, x: number, y: number): boolean {
   const center = getOwnCeremonialCenter(scene);
-  return Phaser.Math.Distance.Between(x, y, center.x, center.y) <= center.radius;
+  return Phaser.Math.Distance.Between(x, y, center.x, center.y) <= CEREMONIAL_CENTER_POINTER_RADIUS_PX;
 }
 
 export function findCeremonialCenterAt(scene: GameScene, x: number, y: number) {
   return scene.ceremonialCenters.find((center) => {
-    return !center.destroyed && Phaser.Math.Distance.Between(x, y, center.x, center.y) <= center.radius;
+    return (
+      !center.destroyed &&
+      Phaser.Math.Distance.Between(x, y, center.x, center.y) <= CEREMONIAL_CENTER_POINTER_RADIUS_PX
+    );
   });
 }
 

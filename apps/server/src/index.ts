@@ -1,11 +1,20 @@
 import { WebSocket, WebSocketServer } from "ws";
 import {
   CONSTRUCTION_SITE_WORK_RADIUS_PX,
+  DEPOSIT_APPROACH_INSET_PX,
+  GATHER_APPROACH_OFFSET_PX,
+  GATHER_MAX_DISTANCE_BEYOND_RADIUS_PX,
   GAME_TITLE,
   ONLINE_WORLD,
   RESOURCES,
+  UNIT_MOVE_ARRIVAL_EPS_PX,
+  WORLD_EDGE_MARGIN,
+  WORLD_LINEAR_SCALE,
   createInitialResourceNodes,
   getBuildingConstructionTotalWork,
+  getBuildingPlacementExclusionRadius,
+  getBuildingResourceClearance,
+  getConstructionApproachStandoffPx,
   normalizeCeremonialCenterCulture,
   type CeremonialCenterCulture,
   type ClientMessage,
@@ -43,22 +52,15 @@ const CARRY_CAPACITY: Record<Resource, number> = {
 const GATHER_AMOUNT = 10;
 const GATHER_INTERVAL_MS = 1000;
 const CENTER_MAX_HEALTH = 650;
-const CENTER_DEPOSIT_RADIUS = 180;
+const CENTER_DEPOSIT_RADIUS = 180 * WORLD_LINEAR_SCALE;
 const HOUSE_WOOD_COST = 50;
 const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
   madera: 120,
   piedra: 40,
 };
-const BUILDING_RADIUS: Record<OnlineBuildingKind, number> = {
-  casa: 112,
-  telpochcalli: 146,
-};
-const RESOURCE_CLEARANCE: Record<OnlineBuildingKind, number> = {
-  casa: 54,
-  telpochcalli: 82,
-};
 const WARRIOR_ATTACK = 14;
-const WARRIOR_RANGE = 78;
+const WARRIOR_RANGE = 78 * WORLD_LINEAR_SCALE;
+const WARRIOR_CENTER_ATTACK_INSET_PX = 12 * WORLD_LINEAR_SCALE;
 const WARRIOR_COOLDOWN_MS = 850;
 let nextBuildingNumber = 1;
 
@@ -124,12 +126,16 @@ function ensureStartingUnits(playerId: string) {
   if (state.units.some((unit) => unit.ownerId === playerId)) return;
 
   const center = getPlayerCenter(playerId);
-  const startX = center ? center.x + 260 : 780;
-  const startY = center ? center.y + 180 : 620;
+  const ox = 260 * WORLD_LINEAR_SCALE;
+  const oy = 180 * WORLD_LINEAR_SCALE;
+  const dx = 100 * WORLD_LINEAR_SCALE;
+  const dy = 70 * WORLD_LINEAR_SCALE;
+  const startX = center ? center.x + ox : 780 * WORLD_LINEAR_SCALE;
+  const startY = center ? center.y + oy : 620 * WORLD_LINEAR_SCALE;
 
   state.units.push(
     createUnit(`${playerId}-aldeano-1`, playerId, "aldeano", startX, startY),
-    createUnit(`${playerId}-guerrero-1`, playerId, "guerrero", startX + 100, startY + 70),
+    createUnit(`${playerId}-guerrero-1`, playerId, "guerrero", startX + dx, startY + dy),
   );
 }
 
@@ -167,7 +173,7 @@ function createUnit(
     kind,
     x,
     y,
-    speed: kind === "aldeano" ? 170 : 190,
+    speed: kind === "aldeano" ? 170 * WORLD_LINEAR_SCALE : 190 * WORLD_LINEAR_SCALE,
     health: maxHealth,
     maxHealth,
     cargo: {
@@ -282,7 +288,7 @@ function updateUnits(deltaMs: number) {
     if (!unit.target) continue;
 
     const distance = Math.hypot(unit.target.x - unit.x, unit.target.y - unit.y);
-    if (distance < 4) {
+    if (distance < UNIT_MOVE_ARRIVAL_EPS_PX) {
       unit.target = undefined;
       if (unit.attackTargetId && unit.workState === "attacking") {
         updateCenterAttack(unit, deltaMs);
@@ -346,7 +352,7 @@ function updateGathering(unit: OnlineUnitState, deltaMs: number) {
   }
 
   const distance = Math.hypot(node.x - unit.x, node.y - unit.y);
-  if (distance > node.radius + 42) {
+  if (distance > node.radius + GATHER_MAX_DISTANCE_BEYOND_RADIUS_PX) {
     unit.target = getGatherApproachPoint(unit, node);
     unit.workState = "moving";
     return;
@@ -423,7 +429,7 @@ function updateDeposit(unit: OnlineUnitState) {
 
 function getGatherApproachPoint(unit: OnlineUnitState, node: OnlineResourceNodeState) {
   const angle = Math.atan2(unit.y - node.y, unit.x - node.x);
-  const distance = node.radius + 26;
+  const distance = node.radius + GATHER_APPROACH_OFFSET_PX;
   return {
     x: node.x + Math.cos(angle) * distance,
     y: node.y + Math.sin(angle) * distance,
@@ -435,7 +441,7 @@ function getDepositApproachPoint(unit: OnlineUnitState) {
   if (!center) return { x: unit.x, y: unit.y };
 
   const angle = Math.atan2(unit.y - center.y, unit.x - center.x);
-  const distance = center.radius - 28;
+  const distance = center.radius - DEPOSIT_APPROACH_INSET_PX;
   return {
     x: center.x + Math.cos(angle) * distance,
     y: center.y + Math.sin(angle) * distance,
@@ -444,7 +450,7 @@ function getDepositApproachPoint(unit: OnlineUnitState) {
 
 function getCenterApproachPoint(unit: OnlineUnitState, center: OnlineCeremonialCenterState) {
   const angle = Math.atan2(unit.y - center.y, unit.x - center.x);
-  const distance = center.radius + WARRIOR_RANGE - 12;
+  const distance = center.radius + WARRIOR_RANGE - WARRIOR_CENTER_ATTACK_INSET_PX;
   return {
     x: center.x + Math.cos(angle) * distance,
     y: center.y + Math.sin(angle) * distance,
@@ -453,7 +459,7 @@ function getCenterApproachPoint(unit: OnlineUnitState, center: OnlineCeremonialC
 
 function getConstructionApproachPoint(unit: OnlineUnitState, building: OnlineBuildingState) {
   const angle = Math.atan2(unit.y - building.y, unit.x - building.x);
-  const distance = Math.max(16, CONSTRUCTION_SITE_WORK_RADIUS_PX - 24);
+  const distance = getConstructionApproachStandoffPx();
   return {
     x: building.x + Math.cos(angle) * distance,
     y: building.y + Math.sin(angle) * distance,
@@ -509,9 +515,9 @@ function getPlayerCenter(playerId: string) {
 }
 
 function pickCeremonialCenterPosition(slot: number) {
-  const margin = 420;
-  const minSeparation = 880;
-  const resourceClearance = 200;
+  const margin = 420 * WORLD_LINEAR_SCALE;
+  const minSeparation = 880 * WORLD_LINEAR_SCALE;
+  const resourceClearance = 200 * WORLD_LINEAR_SCALE;
 
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const x = margin + Math.random() * (ONLINE_WORLD.width - margin * 2);
@@ -531,13 +537,18 @@ function pickCeremonialCenterPosition(slot: number) {
 }
 
 function getStartingCenterPosition(slot: number) {
-  if (slot === 1) return { x: 720, y: 680 };
-  if (slot === 2) return { x: ONLINE_WORLD.width - 720, y: ONLINE_WORLD.height - 680 };
+  if (slot === 1) return { x: 720 * WORLD_LINEAR_SCALE, y: 680 * WORLD_LINEAR_SCALE };
+  if (slot === 2) {
+    return {
+      x: ONLINE_WORLD.width - 720 * WORLD_LINEAR_SCALE,
+      y: ONLINE_WORLD.height - 680 * WORLD_LINEAR_SCALE,
+    };
+  }
 
   const angle = ((slot - 1) / 6) * Math.PI * 2;
   return {
-    x: ONLINE_WORLD.width / 2 + Math.cos(angle) * 2200,
-    y: ONLINE_WORLD.height / 2 + Math.sin(angle) * 1400,
+    x: ONLINE_WORLD.width / 2 + Math.cos(angle) * 2200 * WORLD_LINEAR_SCALE,
+    y: ONLINE_WORLD.height / 2 + Math.sin(angle) * 1400 * WORLD_LINEAR_SCALE,
   };
 }
 
@@ -593,20 +604,30 @@ function buildStructure(
 }
 
 function canPlaceBuildingAt(x: number, y: number, kind: OnlineBuildingKind) {
-  if (x < 80 || y < 80 || x > ONLINE_WORLD.width - 80 || y > ONLINE_WORLD.height - 80) return false;
+  if (
+    x < WORLD_EDGE_MARGIN ||
+    y < WORLD_EDGE_MARGIN ||
+    x > ONLINE_WORLD.width - WORLD_EDGE_MARGIN ||
+    y > ONLINE_WORLD.height - WORLD_EDGE_MARGIN
+  ) {
+    return false;
+  }
 
   const nearResource = state.resourceNodes.some((node) => {
     if (node.depleted) return false;
-    return Math.hypot(x - node.x, y - node.y) < node.radius + RESOURCE_CLEARANCE[kind];
+    return Math.hypot(x - node.x, y - node.y) < node.radius + getBuildingResourceClearance(kind);
   });
   if (nearResource) return false;
 
   const nearBuilding = state.buildings.some((building) => {
-    return Math.hypot(x - building.x, y - building.y) < BUILDING_RADIUS[kind];
+    return Math.hypot(x - building.x, y - building.y) < getBuildingPlacementExclusionRadius(kind);
   });
   if (nearBuilding) return false;
 
-  return !state.ceremonialCenters.some((center) => Math.hypot(x - center.x, y - center.y) < center.radius + BUILDING_RADIUS[kind]);
+  const placementRadius = getBuildingPlacementExclusionRadius(kind);
+  return !state.ceremonialCenters.some(
+    (center) => Math.hypot(x - center.x, y - center.y) < center.radius + placementRadius,
+  );
 }
 
 function getBuildingCost(kind: OnlineBuildingKind): Partial<Record<Resource, number>> {

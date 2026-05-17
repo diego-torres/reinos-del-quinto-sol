@@ -1,9 +1,11 @@
 import {
   CONSTRUCTION_SITE_WORK_RADIUS_PX,
   buildingConstructionProgressRatio,
+  getConstructionApproachStandoffPx,
 } from "@reinos/shared";
 import Phaser from "phaser";
 import { drawBuildingConstructionSite, drawHouse, drawTelpochcalli } from "../art.js";
+import { CONSTRUCTION_SITE_POINTER_RADIUS_PX } from "../rules.js";
 import type { BuildingData, UnitData, UnitWorkState } from "../types.js";
 import type { GameScene } from "./gameScene.js";
 
@@ -21,7 +23,7 @@ export function getLocalConstructionApproachPoint(
   building: BuildingData,
 ): Phaser.Math.Vector2 {
   const angle = Phaser.Math.Angle.Between(building.x, building.y, unit.x, unit.y);
-  const distance = Math.max(16, CONSTRUCTION_SITE_WORK_RADIUS_PX - 24);
+  const distance = getConstructionApproachStandoffPx();
   return new Phaser.Math.Vector2(
     building.x + Math.cos(angle) * distance,
     building.y + Math.sin(angle) * distance,
@@ -29,10 +31,9 @@ export function getLocalConstructionApproachPoint(
 }
 
 export function findConstructionSiteAt(scene: GameScene, x: number, y: number): BuildingData | undefined {
-  const pickRadius = 56;
   return scene.buildings.find((building) => {
     if (building.constructionWorkRemaining <= 0) return false;
-    return Phaser.Math.Distance.Between(x, y, building.x, building.y) <= pickRadius;
+    return Phaser.Math.Distance.Between(x, y, building.x, building.y) <= CONSTRUCTION_SITE_POINTER_RADIUS_PX;
   });
 }
 

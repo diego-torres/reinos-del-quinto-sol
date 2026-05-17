@@ -12,7 +12,7 @@ import {
   HOUSE_ASSET_KEY,
   VILLAGER_ASSET_KEY,
 } from "../art.js";
-import { CARRY_CAPACITY, HOUSE_POPULATION_BONUS, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
+import { CARRY_CAPACITY, HOUSE_POPULATION_BONUS, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH } from "../rules.js";
 import type {
   BuildingData,
   BuildingKind,
@@ -30,6 +30,7 @@ import { depleteResourceNode as depleteResourceNodeEconomy, registerResourceNode
 import { syncDomState as syncSceneStateToDom } from "./domSync.js";
 import { installDebugApi } from "./debugApi.js";
 import { bindGameplayInput } from "./inputBindings.js";
+import { setupPointerHover } from "./pointerHover.js";
 import { redrawExplorationFogIfDirty, revealFromLocalPlayerUnits } from "./explorationFog.js";
 import { advanceOfflineConstruction, refreshAllConstructionVisuals } from "./buildingConstruction.js";
 import { bootstrapOfflineStartingArea } from "./mapInit.js";
@@ -132,6 +133,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     connectToGameServer(this);
 
     bindGameplayInput(this);
+    setupPointerHover(this);
 
     startBackgroundMusic(this);
   }
@@ -242,7 +244,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
 
     this.tweens.add({
       targets: text,
-      y: y - 28,
+      y: y - 28 * WORLD_LINEAR_SCALE,
       alpha: 0,
       duration: 780,
       onComplete: () => text.destroy(),

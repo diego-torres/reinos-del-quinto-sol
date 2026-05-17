@@ -1,7 +1,7 @@
 import Phaser from "phaser";
-import type { CeremonialCenterCulture } from "@reinos/shared";
+import { UNIT_MOVE_ARRIVAL_EPS_PX, type CeremonialCenterCulture } from "@reinos/shared";
 import { labelStyle } from "../art.js";
-import { CARRY_CAPACITY, TRAINING, UNIT_STATS, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
+import { CARRY_CAPACITY, TRAINING, UNIT_STATS, WORLD_EDGE_MARGIN, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH } from "../rules.js";
 import type { MythicBeast, ResourceNode, UnitCargo, UnitData, UnitKind, UnitWorkState } from "../types.js";
 import {
   createVillagerSkin,
@@ -252,7 +252,7 @@ export function updateUnits(scene: GameScene, delta: number): void {
     if (!target) return true;
 
     const distance = Phaser.Math.Distance.Between(child.x, child.y, target.x, target.y);
-    if (distance < 4) {
+    if (distance < UNIT_MOVE_ARRIVAL_EPS_PX) {
       child.setData("target", undefined);
       scene.targetMarkers.get(unitData.id)?.destroy();
       scene.targetMarkers.delete(unitData.id);
@@ -279,13 +279,17 @@ export function updateUnits(scene: GameScene, delta: number): void {
     child.x += Math.cos(angle) * step;
     child.y += Math.sin(angle) * step;
     if (child === scene.selectedUnit && scene.selectionRing) {
-      scene.selectionRing.setPosition(child.x, child.y + 8);
+      scene.selectionRing.setPosition(child.x, child.y + 8 * WORLD_LINEAR_SCALE);
     }
 
     return true;
   });
   scene.syncDomState();
 }
+
+/** Offsets Y en px de pantalla (ancla en el pie del personaje); no usar WORLD_LINEAR_SCALE aquí. */
+const UNIT_LABEL_HEALTH_OFFSET_Y = 38;
+const UNIT_LABEL_CARGO_OFFSET_Y = 52;
 
 export function createUnit(scene: GameScene, x: number, y: number, data: UnitData): Phaser.GameObjects.Container {
   const unit = scene.add.container(x, y);
@@ -302,18 +306,21 @@ export function createUnit(scene: GameScene, x: number, y: number, data: UnitDat
   unit.setData("cargo", { amount: 0 } satisfies UnitCargo);
   unit.setData("workState", "idle" satisfies UnitWorkState);
   unit.setData("constructionTargetId", undefined);
-  unit.setSize(52, 60);
-  unit.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
+  unit.setSize(52 * WORLD_LINEAR_SCALE, 60 * WORLD_LINEAR_SCALE);
+  unit.setInteractive(
+    new Phaser.Geom.Circle(0, 0, 34 * WORLD_LINEAR_SCALE),
+    Phaser.Geom.Circle.Contains,
+  );
 
   const unitVisuals = createUnitVisuals(scene, data);
   const ownerLabel = data.ownerId && data.ownerId !== scene.playerId ? ` ${data.ownerId.replace("player-", "P")}` : "";
   const label = scene.add.text(
     0,
-    50,
+    UNIT_LABEL_HEALTH_OFFSET_Y,
     `${data.label}${ownerLabel} ${UNIT_STATS[data.kind].maxHealth}/${UNIT_STATS[data.kind].maxHealth}`,
     labelStyle(13),
   ).setOrigin(0.5);
-  const cargoLabel = scene.add.text(0, 68, "", labelStyle(12)).setOrigin(0.5);
+  const cargoLabel = scene.add.text(0, UNIT_LABEL_CARGO_OFFSET_Y, "", labelStyle(12)).setOrigin(0.5);
 
   unit.add([...unitVisuals.objects, label, cargoLabel]);
   if (unitVisuals.villagerRig) {
@@ -362,7 +369,12 @@ function createUnitVisuals(scene: GameScene, data: UnitData) {
 export function selectUnit(scene: GameScene, unit: Phaser.GameObjects.Container): void {
   scene.selectedUnit = unit;
   scene.selectionRing?.destroy();
-  scene.selectionRing = scene.add.ellipse(unit.x, unit.y + 8, 66, 40);
+  scene.selectionRing = scene.add.ellipse(
+    unit.x,
+    unit.y + 8 * WORLD_LINEAR_SCALE,
+    66 * WORLD_LINEAR_SCALE,
+    40 * WORLD_LINEAR_SCALE,
+  );
   scene.selectionRing.setStrokeStyle(3, 0xf5d76e, 0.95);
   scene.selectionRing.setDepth(8);
   unit.setDepth(10);
@@ -391,13 +403,13 @@ export function trainVillager(scene: GameScene): void {
 
   scene.time.delayedCall(TRAINING.aldeano.durationMs, () => {
     const centerCoords = getOwnCeremonialCenter(scene);
-    const spawn = getSpawnPointNear(scene, centerCoords.x, centerCoords.y, 230);
+    const spawn = getSpawnPointNear(scene, centerCoords.x, centerCoords.y, 230 * WORLD_LINEAR_SCALE);
     const unit = createUnit(scene, spawn.x, spawn.y, {
       id: `aldeano-${scene.nextUnitId++}`,
       kind: "aldeano",
       label: "Aldeano",
       color: 0xe5c16f,
-      speed: 170,
+      speed: 170 * WORLD_LINEAR_SCALE,
       skin: createVillagerSkin(`local:aldeano-${scene.nextUnitId}`, resolveVillagerCulture(scene)),
     });
     scene.isTrainingVillager = false;
@@ -435,13 +447,13 @@ export function trainWarrior(scene: GameScene): void {
   scene.setStatus(`Entrenando guerrero (${TRAINING.guerrero.durationMs / 1000}s).`);
 
   scene.time.delayedCall(TRAINING.guerrero.durationMs, () => {
-    const spawn = getSpawnPointNear(scene, telpochcalli.x, telpochcalli.y, 150);
+    const spawn = getSpawnPointNear(scene, telpochcalli.x, telpochcalli.y, 150 * WORLD_LINEAR_SCALE);
     const unit = createUnit(scene, spawn.x, spawn.y, {
       id: `guerrero-${scene.nextUnitId++}`,
       kind: "guerrero",
       label: "Guerrero",
       color: 0xb84a3b,
-      speed: 190,
+      speed: 190 * WORLD_LINEAR_SCALE,
     });
     scene.isTrainingWarrior = false;
     selectUnit(scene, unit);
@@ -472,8 +484,8 @@ function canTrain(scene: GameScene, kind: UnitKind): boolean {
 function getSpawnPointNear(scene: GameScene, x: number, y: number, distance: number): Phaser.Math.Vector2 {
   const angle = Phaser.Math.DegToRad(35 + scene.units.length * 37);
   return new Phaser.Math.Vector2(
-    Phaser.Math.Clamp(x + Math.cos(angle) * distance, 80, WORLD_WIDTH - 80),
-    Phaser.Math.Clamp(y + Math.sin(angle) * distance, 80, WORLD_HEIGHT - 80),
+    Phaser.Math.Clamp(x + Math.cos(angle) * distance, WORLD_EDGE_MARGIN, WORLD_WIDTH - WORLD_EDGE_MARGIN),
+    Phaser.Math.Clamp(y + Math.sin(angle) * distance, WORLD_EDGE_MARGIN, WORLD_HEIGHT - WORLD_EDGE_MARGIN),
   );
 }
 

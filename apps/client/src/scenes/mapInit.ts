@@ -2,6 +2,7 @@ import {
   CEREMONIAL_CENTER_CULTURES,
   normalizeCeremonialCenterCulture,
 } from "@reinos/shared";
+import { WORLD_LINEAR_SCALE } from "@reinos/shared";
 import { createCamazotz, drawCeremonialCenter, drawResourceClusters, drawTerrain } from "../art.js";
 import { CEREMONIAL_CENTER, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
 import { createVillagerSkin } from "../villagerAssets.js";
@@ -18,7 +19,7 @@ export function bootstrapOfflineStartingArea(scene: GameScene): void {
   createExplorationFog(scene);
   drawResourceClusters(scene, scene.registerResourceNode.bind(scene));
 
-  const mapMargin = 480;
+  const mapMargin = 480 * WORLD_LINEAR_SCALE;
   const cx = mapMargin + Math.random() * (WORLD_WIDTH - mapMargin * 2);
   const cy = mapMargin + Math.random() * (WORLD_HEIGHT - mapMargin * 2);
   const offlineCulture = normalizeCeremonialCenterCulture(
@@ -33,33 +34,33 @@ export function bootstrapOfflineStartingArea(scene: GameScene): void {
     container: centerContainer,
   };
 
-  const beastA = scene.pickWorldPointAwayFrom(cx, cy, 520, mapMargin);
-  let beastB = scene.pickWorldPointAwayFrom(cx, cy, 520, mapMargin);
-  for (let n = 0; n < 40 && Math.hypot(beastB.x - beastA.x, beastB.y - beastA.y) < 420; n += 1) {
-    beastB = scene.pickWorldPointAwayFrom(cx, cy, 520, mapMargin);
+  const beastA = scene.pickWorldPointAwayFrom(cx, cy, 520 * WORLD_LINEAR_SCALE, mapMargin);
+  let beastB = scene.pickWorldPointAwayFrom(cx, cy, 520 * WORLD_LINEAR_SCALE, mapMargin);
+  for (let n = 0; n < 40 && Math.hypot(beastB.x - beastA.x, beastB.y - beastA.y) < 420 * WORLD_LINEAR_SCALE; n += 1) {
+    beastB = scene.pickWorldPointAwayFrom(cx, cy, 520 * WORLD_LINEAR_SCALE, mapMargin);
   }
   scene.mythicBeasts = [
     createCamazotz(scene, beastA.x, beastA.y, { id: "bestia-1", name: "Camazotz" }),
     createCamazotz(scene, beastB.x, beastB.y, { id: "bestia-2", name: "Balam" }),
   ];
 
-  const startX = cx + 260;
-  const startY = cy + 180;
+  const startX = cx + 260 * WORLD_LINEAR_SCALE;
+  const startY = cy + 180 * WORLD_LINEAR_SCALE;
   const aldeano = scene.createUnit(startX, startY, {
     id: "aldeano-1",
     kind: "aldeano",
     label: "Aldeano",
     color: 0xe5c16f,
-    speed: 170,
+    speed: 170 * WORLD_LINEAR_SCALE,
     skin: createVillagerSkin("offline:aldeano-1", offlineCulture),
   });
 
-  scene.createUnit(startX + 100, startY + 70, {
+  scene.createUnit(startX + 100 * WORLD_LINEAR_SCALE, startY + 70 * WORLD_LINEAR_SCALE, {
     id: "guerrero-1",
     kind: "guerrero",
     label: "Guerrero",
     color: 0xb84a3b,
-    speed: 190,
+    speed: 190 * WORLD_LINEAR_SCALE,
   });
 
   scene.focusCameraOnWorldPoint(cx, cy);

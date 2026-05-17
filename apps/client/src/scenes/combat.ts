@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { RESOURCES } from "@reinos/shared";
+import { RESOURCES, UNIT_MOVE_ARRIVAL_EPS_PX, WORLD_LINEAR_SCALE } from "@reinos/shared";
 import { TRAINING, UNIT_STATS } from "../rules.js";
 import type { MythicBeast, UnitData, UnitWorkState } from "../types.js";
 import { formatCost } from "./economy.js";
@@ -44,7 +44,7 @@ export function updateUnitAttack(
   const distance = Phaser.Math.Distance.Between(unit.x, unit.y, beast.x, beast.y);
 
   if (distance > stats.range) {
-    unit.setData("target", getApproachPoint(unit.x, unit.y, beast.x, beast.y, stats.range - 6));
+    unit.setData("target", getApproachPoint(unit.x, unit.y, beast.x, beast.y, stats.range - 6 * WORLD_LINEAR_SCALE));
     moveUnitTowardTarget(scene, unit, unitData, delta);
     return;
   }
@@ -58,7 +58,7 @@ export function updateUnitAttack(
 
   beast.health = Math.max(0, beast.health - stats.attack);
   unit.setData("attackElapsed", 0);
-  scene.pulseResourceGain(beast.x, beast.y - 72, `-${stats.attack}`);
+  scene.pulseResourceGain(beast.x, beast.y - 72 * WORLD_LINEAR_SCALE, `-${stats.attack}`);
   updateBeastLabel(beast);
 
   if (beast.health <= 0) {
@@ -79,7 +79,7 @@ export function updateBeast(scene: GameScene, delta: number): void {
     beast.targetUnit = target;
     const distance = Phaser.Math.Distance.Between(beast.x, beast.y, target.x, target.y);
     if (distance > beast.range) {
-      const point = getApproachPoint(beast.x, beast.y, target.x, target.y, beast.range - 8);
+      const point = getApproachPoint(beast.x, beast.y, target.x, target.y, beast.range - 8 * WORLD_LINEAR_SCALE);
       const step = Math.min(distance, beast.speed * (delta / 1000));
       const angle = Phaser.Math.Angle.Between(beast.x, beast.y, point.x, point.y);
       beast.x += Math.cos(angle) * step;
@@ -102,7 +102,7 @@ export function findBeastTarget(scene: GameScene, beast: MythicBeast): Phaser.Ga
   return scene.units.find((unit: Phaser.GameObjects.Container) => {
     const unitData = unit.getData("unit") as UnitData | undefined;
     if (!unitData || unitData.kind !== "guerrero") return false;
-    return Phaser.Math.Distance.Between(unit.x, unit.y, beast.x, beast.y) < 380;
+    return Phaser.Math.Distance.Between(unit.x, unit.y, beast.x, beast.y) < 380 * WORLD_LINEAR_SCALE;
   });
 }
 
@@ -111,7 +111,7 @@ export function damageUnit(scene: GameScene, unit: Phaser.GameObjects.Container,
   const health = Math.max(0, (unit.getData("health") as number) - damage);
   unit.setData("health", health);
   scene.updateUnitHealthLabel(unit);
-  scene.pulseResourceGain(unit.x, unit.y - 44, `-${damage}`);
+  scene.pulseResourceGain(unit.x, unit.y - 44 * WORLD_LINEAR_SCALE, `-${damage}`);
 
   if (health > 0) return;
 
@@ -150,7 +150,7 @@ export function killBeast(scene: GameScene, beast: MythicBeast): void {
 export function findBeastAt(scene: GameScene, x: number, y: number): MythicBeast | undefined {
   for (const beast of scene.mythicBeasts) {
     if (beast.dead) continue;
-    if (Phaser.Math.Distance.Between(x, y, beast.x, beast.y) <= 100) return beast;
+    if (Phaser.Math.Distance.Between(x, y, beast.x, beast.y) <= 100 * WORLD_LINEAR_SCALE) return beast;
   }
   return undefined;
 }
@@ -173,7 +173,7 @@ export function moveUnitTowardTarget(
   if (!target) return;
 
   const distance = Phaser.Math.Distance.Between(unit.x, unit.y, target.x, target.y);
-  if (distance < 4) {
+  if (distance < UNIT_MOVE_ARRIVAL_EPS_PX) {
     unit.setData("target", undefined);
     return;
   }
@@ -184,7 +184,7 @@ export function moveUnitTowardTarget(
   unit.y += Math.sin(angle) * step;
 
   if (unit === scene.selectedUnit && scene.selectionRing) {
-    scene.selectionRing.setPosition(unit.x, unit.y + 8);
+    scene.selectionRing.setPosition(unit.x, unit.y + 8 * WORLD_LINEAR_SCALE);
   }
 }
 
