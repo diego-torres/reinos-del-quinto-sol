@@ -80,6 +80,9 @@ npm run dev --workspace @reinos/client -- --host 127.0.0.1 --port 5173
 - Update docs when a feature changes design direction.
 - Add historical notes when a culture-specific mechanic, unit, building, or campaign element is introduced.
 - Keep docs in Spanish unless there is a clear reason to do otherwise.
+- Keep villager culture skins, gender variants, animation states, and audio decisions aligned with `docs/diseno/aldeanos-arte-audio.md`.
+- Gender variants for villagers are cosmetic only; do not encode stat, speed, cost, capacity, or rule differences.
+- Document author/source/license in `assets/audio/` before replacing procedural unit feedback with recorded audio.
 
 ## Safety
 

@@ -1,5 +1,10 @@
 import type Phaser from "phaser";
-import type { OnlineBuildingKind, OnlineCeremonialCenterState, Resource } from "@reinos/shared";
+import type {
+  CeremonialCenterCulture,
+  OnlineBuildingKind,
+  OnlineCeremonialCenterState,
+  Resource,
+} from "@reinos/shared";
 
 export type CeremonialCenterData = OnlineCeremonialCenterState & {
   container: Phaser.GameObjects.Container;
@@ -8,6 +13,15 @@ export type CeremonialCenterData = OnlineCeremonialCenterState & {
 
 export type UnitKind = "aldeano" | "guerrero";
 
+export type VillagerGenderVariant = "masculino" | "femenina";
+
+export type VillagerAnimationState = "idle" | "walk" | "build" | "gather-food" | "carry";
+
+export type VillagerSkin = {
+  culture: CeremonialCenterCulture;
+  gender: VillagerGenderVariant;
+};
+
 export type UnitData = {
   id: string;
   kind: UnitKind;
@@ -15,6 +29,7 @@ export type UnitData = {
   color: number;
   speed: number;
   ownerId?: string;
+  skin?: VillagerSkin;
 };
 
 export type UnitStats = {
