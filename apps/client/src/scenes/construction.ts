@@ -10,6 +10,7 @@ import {
   WORLD_WIDTH,
   getBuildingCost,
 } from "../rules.js";
+import { resolveOfflinePlacementCulture } from "../buildingCulture.js";
 import type { BuildingData, BuildingKind, UnitData, UnitWorkState } from "../types.js";
 import type { GameScene } from "./gameScene.js";
 import { canAfford, formatCost, spendResources } from "./economy.js";
@@ -109,6 +110,7 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
     label: scene.buildMode === "casa" ? "Casa" : "Telpochcalli",
     x,
     y,
+    culture: resolveOfflinePlacementCulture(scene.offlineFallbackCenter?.culture),
     populationBonus: scene.buildMode === "casa" ? HOUSE_POPULATION_BONUS : 0,
     constructionWorkRemaining: totalWork,
   };

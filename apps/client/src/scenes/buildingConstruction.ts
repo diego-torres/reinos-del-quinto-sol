@@ -109,6 +109,7 @@ export function createUnderConstructionVisual(scene: GameScene, building: Buildi
     building.y,
     building.kind,
     ratio,
+    building.culture,
   );
   building.container = container;
   building.constructionProgressFill = progressFill;
@@ -120,7 +121,7 @@ export function replaceBuildingWithCompleteVisual(scene: GameScene, building: Bu
   building.constructionProgressFill = undefined;
   building.constructionProgressMaxWidth = undefined;
   building.container = building.kind === "casa"
-    ? drawHouse(scene, building.x, building.y)
+    ? drawHouse(scene, building.x, building.y, building.culture)
     : drawTelpochcalli(scene, building.x, building.y);
 }
 

@@ -10,9 +10,12 @@ import {
 } from "@reinos/shared";
 import {
   CEREMONIAL_CENTER_TEXTURE_KEYS,
+  CONSTRUCTION_TEXTURE_KEYS,
   HOUSE_ASSET_KEY,
+  HOUSE_TEXTURE_KEYS,
   VILLAGER_ASSET_KEY,
 } from "../art.js";
+import { resolveBuildingCultureFromState } from "../buildingCulture.js";
 import { CARRY_CAPACITY, HOUSE_POPULATION_BONUS, WORLD_HEIGHT, WORLD_LINEAR_SCALE, WORLD_WIDTH, formatResourceName } from "../rules.js";
 import type {
   BuildingData,
@@ -52,6 +55,14 @@ import mexicaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/mexica
 import tlaxcaltecaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/tlaxcalteca.png";
 import incaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/inca.png";
 import mayaCeremonialAsset from "@repo-assets/sprites/centro-ceremonial/maya.png";
+import mayaCasaAsset from "@repo-assets/sprites/casas/maya.png";
+import mexicaCasaAsset from "@repo-assets/sprites/casas/mexica.png";
+import tlaxcaltecaCasaAsset from "@repo-assets/sprites/casas/tlaxcalteca.png";
+import incaCasaAsset from "@repo-assets/sprites/casas/inca.png";
+import mayaConstruccionAsset from "@repo-assets/sprites/construccion/maya.png";
+import mexicaConstruccionAsset from "@repo-assets/sprites/construccion/mexica.png";
+import tlaxcaltecaConstruccionAsset from "@repo-assets/sprites/construccion/tlaxcalteca.png";
+import incaConstruccionAsset from "@repo-assets/sprites/construccion/inca.png";
 import { createVillagerSkin, preloadVillagerSpriteSheets } from "../villagerAssets.js";
 
 /** Escena principal del juego (mapa, unidades, economía y sincronización online). */
@@ -114,6 +125,14 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaCeremonialAsset);
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.inca, incaCeremonialAsset);
     this.load.image(CEREMONIAL_CENTER_TEXTURE_KEYS.maya, mayaCeremonialAsset);
+    this.load.image(HOUSE_TEXTURE_KEYS.maya, mayaCasaAsset);
+    this.load.image(HOUSE_TEXTURE_KEYS.mexica, mexicaCasaAsset);
+    this.load.image(HOUSE_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaCasaAsset);
+    this.load.image(HOUSE_TEXTURE_KEYS.inca, incaCasaAsset);
+    this.load.image(CONSTRUCTION_TEXTURE_KEYS.maya, mayaConstruccionAsset);
+    this.load.image(CONSTRUCTION_TEXTURE_KEYS.mexica, mexicaConstruccionAsset);
+    this.load.image(CONSTRUCTION_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaConstruccionAsset);
+    this.load.image(CONSTRUCTION_TEXTURE_KEYS.inca, incaConstruccionAsset);
     preloadVillagerSpriteSheets(this);
     preloadMusicAssets(this);
   }
@@ -296,6 +315,7 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
       label: buildingState.kind === "casa" ? "Casa" : "Telpochcalli",
       x: buildingState.x,
       y: buildingState.y,
+      culture: resolveBuildingCultureFromState(this.onlineState, buildingState.ownerId),
       populationBonus: buildingState.kind === "casa" ? HOUSE_POPULATION_BONUS : 0,
       constructionWorkRemaining: buildingState.constructionWorkRemaining,
     };

@@ -72,6 +72,8 @@ export type BuildingData = {
   x: number;
   y: number;
   ownerId?: string;
+  /** Texturas de casa / obra según cultura del jugador (issue #10). */
+  culture: CeremonialCenterCulture;
   populationBonus: number;
   /** Aldeano-segundos restantes; 0 = terminado. */
   constructionWorkRemaining: number;

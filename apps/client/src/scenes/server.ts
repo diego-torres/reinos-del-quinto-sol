@@ -14,6 +14,7 @@ import {
   drawTelpochcalli,
   labelStyle,
 } from "../art.js";
+import { resolveBuildingCultureFromState } from "../buildingCulture.js";
 import {
   createUnderConstructionVisual,
   refreshBuildingConstructionVisual,
@@ -429,11 +430,12 @@ function applyOnlineBuildings(scene: GameScene, state: OnlineGameState): void {
         createUnderConstructionVisual(scene, building);
       } else {
         building.container = building.kind === "casa"
-          ? drawHouse(scene, building.x, building.y)
+          ? drawHouse(scene, building.x, building.y, building.culture)
           : drawTelpochcalli(scene, building.x, building.y);
       }
       scene.buildings.push(building);
     } else {
+      building.culture = resolveBuildingCultureFromState(scene.onlineState, buildingState.ownerId);
       building.constructionWorkRemaining = buildingState.constructionWorkRemaining;
       if (building.constructionWorkRemaining > 0) {
         if (!building.constructionProgressFill) {

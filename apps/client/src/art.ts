@@ -28,6 +28,22 @@ export const CEREMONIAL_CENTER_TEXTURE_KEYS: Record<CeremonialCenterCulture, str
   maya: "ceremonial-center-maya",
 };
 
+/** Casas por cultura (PNG en `assets/sprites/casas/`). */
+export const HOUSE_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
+  mexica: "house-culture-mexica",
+  tlaxcalteca: "house-culture-tlaxcalteca",
+  inca: "house-culture-inca",
+  maya: "house-culture-maya",
+};
+
+/** Áreas bajo construcción civiles por cultura (`assets/sprites/construccion/`). */
+export const CONSTRUCTION_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
+  mexica: "construction-culture-mexica",
+  tlaxcalteca: "construction-culture-tlaxcalteca",
+  inca: "construction-culture-inca",
+  maya: "construction-culture-maya",
+};
+
 function resolveCeremonialCenterTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCulture): string {
   const normalized = normalizeCeremonialCenterCulture(culture);
   const primary = CEREMONIAL_CENTER_TEXTURE_KEYS[normalized];
@@ -35,6 +51,25 @@ function resolveCeremonialCenterTextureKey(scene: Phaser.Scene, culture: Ceremon
   const fallback = CEREMONIAL_CENTER_TEXTURE_KEYS.maya;
   if (scene.textures.exists(fallback)) return fallback;
   return primary;
+}
+
+function resolveHouseTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCulture): string | undefined {
+  const normalized = normalizeCeremonialCenterCulture(culture);
+  const primary = HOUSE_TEXTURE_KEYS[normalized];
+  if (scene.textures.exists(primary)) return primary;
+  const fallback = HOUSE_TEXTURE_KEYS.maya;
+  if (scene.textures.exists(fallback)) return fallback;
+  if (scene.textures.exists(HOUSE_ASSET_KEY)) return HOUSE_ASSET_KEY;
+  return undefined;
+}
+
+function resolveConstructionTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCulture): string | undefined {
+  const normalized = normalizeCeremonialCenterCulture(culture);
+  const primary = CONSTRUCTION_TEXTURE_KEYS[normalized];
+  if (scene.textures.exists(primary)) return primary;
+  const fallback = CONSTRUCTION_TEXTURE_KEYS.maya;
+  if (scene.textures.exists(fallback)) return fallback;
+  return undefined;
 }
 
 type RegisterResourceNode = (
@@ -116,27 +151,25 @@ export function drawCeremonialCenter(scene: Phaser.Scene, x: number, y: number, 
   return base;
 }
 
-export function drawHouse(scene: Phaser.Scene, x: number, y: number) {
-  if (scene.textures.exists(HOUSE_ASSET_KEY)) {
-    const house = scene.add.container(x, y);
-    house.setDepth(2);
-    const h = 128 * B;
-    house.add(scene.add.image(0, 10 * B, HOUSE_ASSET_KEY).setDisplaySize(h, h));
-    house.add(scene.add.text(0, 82 * B, "Casa", labelStyle(13)).setOrigin(0.5));
-    return house;
-  }
-
+export function drawHouse(scene: Phaser.Scene, x: number, y: number, culture: CeremonialCenterCulture) {
+  const cultureNorm = normalizeCeremonialCenterCulture(culture);
   const house = scene.add.container(x, y);
   house.setDepth(2);
-  house.add(scene.add.ellipse(0, 38 * B, 92 * B, 24 * B, 0x000000, 0.18));
-  house.add(scene.add.rectangle(0, 22 * B, 86 * B, 52 * B, 0xb98a58).setStrokeStyle(4, 0x5a3a24));
-  house.add(
-    scene.add.triangle(0, -26 * B, -52 * B, 20 * B, 0, -60 * B, 52 * B, 20 * B, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21),
-  );
-  house.add(scene.add.rectangle(0, 36 * B, 24 * B, 28 * B, 0x3c281d).setStrokeStyle(2, 0x20140f));
-  house.add(
-    scene.add.rectangle(-24 * B, 18 * B, 16 * B, 14 * B, 0xf0c94a, 0.45).setStrokeStyle(2, 0x5a3a24),
-  );
+  const h = 128 * B;
+  const texKey = resolveHouseTextureKey(scene, cultureNorm);
+  if (texKey) {
+    house.add(scene.add.image(0, 10 * B, texKey).setDisplaySize(h, h));
+  } else {
+    house.add(scene.add.ellipse(0, 38 * B, 92 * B, 24 * B, 0x000000, 0.18));
+    house.add(scene.add.rectangle(0, 22 * B, 86 * B, 52 * B, 0xb98a58).setStrokeStyle(4, 0x5a3a24));
+    house.add(
+      scene.add.triangle(0, -26 * B, -52 * B, 20 * B, 0, -60 * B, 52 * B, 20 * B, 0x7d3f2b).setStrokeStyle(4, 0x4d2c21),
+    );
+    house.add(scene.add.rectangle(0, 36 * B, 24 * B, 28 * B, 0x3c281d).setStrokeStyle(2, 0x20140f));
+    house.add(
+      scene.add.rectangle(-24 * B, 18 * B, 16 * B, 14 * B, 0xf0c94a, 0.45).setStrokeStyle(2, 0x5a3a24),
+    );
+  }
   house.add(scene.add.text(0, 82 * B, "Casa", labelStyle(13)).setOrigin(0.5));
   return house;
 }
@@ -171,11 +204,16 @@ export function drawBuildingConstructionSite(
   y: number,
   kind: OnlineBuildingKind,
   progress01: number,
+  culture: CeremonialCenterCulture,
 ): {
   container: Phaser.GameObjects.Container;
   progressFill: Phaser.GameObjects.Rectangle;
   progressWidth: number;
 } {
+  const cultureNorm = normalizeCeremonialCenterCulture(culture);
+  const constructionKey = kind === "casa" ? resolveConstructionTextureKey(scene, cultureNorm) : undefined;
+  const useGeometricScaffold = kind === "telpochcalli" || !constructionKey;
+
   const scaleY = kind === "casa" ? 1 : 1.12;
   const container = scene.add.container(x, y);
   container.setDepth(2);
@@ -184,26 +222,33 @@ export function drawBuildingConstructionSite(
   container.add(
     scene.add.ellipse(0, baseY, kind === "casa" ? 96 * B : 124 * B, 26 * B, 0x000000, 0.22),
   );
-  container.add(
-    scene.add.rectangle(0, 8 * B * scaleY, 16 * B, 100 * B * scaleY, 0x6b5344).setStrokeStyle(3, 0x3d2b22),
-  );
-  container.add(
-    scene.add
-      .rectangle(-30 * B, -8 * B * scaleY, 15 * B, 78 * B * scaleY, 0x7a5c45)
-      .setStrokeStyle(3, 0x3d2b22)
-      .setRotation(0.1),
-  );
-  container.add(
-    scene.add
-      .rectangle(30 * B, -8 * B * scaleY, 15 * B, 78 * B * scaleY, 0x7a5c45)
-      .setStrokeStyle(3, 0x3d2b22)
-      .setRotation(-0.1),
-  );
-  container.add(
-    scene.add
-      .rectangle(0, -42 * B * scaleY, kind === "casa" ? 70 * B : 92 * B, 9 * B, 0x5c4030)
-      .setStrokeStyle(2, 0x2a1a12),
-  );
+
+  if (useGeometricScaffold) {
+    container.add(
+      scene.add.rectangle(0, 8 * B * scaleY, 16 * B, 100 * B * scaleY, 0x6b5344).setStrokeStyle(3, 0x3d2b22),
+    );
+    container.add(
+      scene.add
+        .rectangle(-30 * B, -8 * B * scaleY, 15 * B, 78 * B * scaleY, 0x7a5c45)
+        .setStrokeStyle(3, 0x3d2b22)
+        .setRotation(0.1),
+    );
+    container.add(
+      scene.add
+        .rectangle(30 * B, -8 * B * scaleY, 15 * B, 78 * B * scaleY, 0x7a5c45)
+        .setStrokeStyle(3, 0x3d2b22)
+        .setRotation(-0.1),
+    );
+    container.add(
+      scene.add
+        .rectangle(0, -42 * B * scaleY, kind === "casa" ? 70 * B : 92 * B, 9 * B, 0x5c4030)
+        .setStrokeStyle(2, 0x2a1a12),
+    );
+  } else {
+    const ch = 118 * B;
+    container.add(scene.add.image(0, 8 * B, constructionKey!).setDisplaySize(ch, ch));
+  }
+
   container.add(
     scene.add
       .text(0, baseY + 34 * B, kind === "casa" ? "Casa · obra" : "Telpochcalli · obra", labelStyle(12))
