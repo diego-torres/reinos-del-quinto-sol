@@ -36,7 +36,7 @@ export const HOUSE_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
   maya: "house-culture-maya",
 };
 
-/** Áreas bajo construcción civiles por cultura (`assets/sprites/construccion/`). */
+/** Sprites de obra por cultura (`assets/sprites/construccion/`): casa y telpochcalli. */
 export const CONSTRUCTION_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
   mexica: "construction-culture-mexica",
   tlaxcalteca: "construction-culture-tlaxcalteca",
@@ -197,7 +197,7 @@ export function drawTelpochcalli(scene: Phaser.Scene, x: number, y: number) {
   return building;
 }
 
-/** Obra en curso: andamiaje simple + barra de avance (placeholder). */
+/** Obra en curso: sprite `assets/sprites/construccion/` por cultura si existe; si no, andamiaje geométrico. */
 export function drawBuildingConstructionSite(
   scene: Phaser.Scene,
   x: number,
@@ -211,8 +211,8 @@ export function drawBuildingConstructionSite(
   progressWidth: number;
 } {
   const cultureNorm = normalizeCeremonialCenterCulture(culture);
-  const constructionKey = kind === "casa" ? resolveConstructionTextureKey(scene, cultureNorm) : undefined;
-  const useGeometricScaffold = kind === "telpochcalli" || !constructionKey;
+  const constructionKey = resolveConstructionTextureKey(scene, cultureNorm);
+  const useGeometricScaffold = !constructionKey;
 
   const scaleY = kind === "casa" ? 1 : 1.12;
   const container = scene.add.container(x, y);
@@ -245,7 +245,7 @@ export function drawBuildingConstructionSite(
         .setStrokeStyle(2, 0x2a1a12),
     );
   } else {
-    const ch = 118 * B;
+    const ch = kind === "casa" ? 118 * B : 132 * B;
     container.add(scene.add.image(0, 8 * B, constructionKey!).setDisplaySize(ch, ch));
   }
 
