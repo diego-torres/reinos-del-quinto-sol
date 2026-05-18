@@ -1,4 +1,10 @@
-import { ONLINE_WORLD, WORLD_EDGE_MARGIN, WORLD_LINEAR_SCALE, type Resource } from "@reinos/shared";
+import {
+  CONSTRUCTION_SITE_WORK_RADIUS_PX,
+  ONLINE_WORLD,
+  WORLD_EDGE_MARGIN,
+  WORLD_LINEAR_SCALE,
+  type Resource,
+} from "@reinos/shared";
 import type { BuildingKind, TrainingDefinition, UnitKind, UnitStats } from "./types.js";
 
 export const WORLD_WIDTH = ONLINE_WORLD.width;
@@ -22,9 +28,10 @@ export const CEREMONIAL_CENTER = {
 export const CEREMONIAL_CENTER_POINTER_RADIUS_PX = 36 * WORLD_LINEAR_SCALE;
 
 /**
- * Clic en obra en construcción: más ajustado que el radio de trabajo compartido en servidor.
+ * Radio de puntero para obra: trabajo autoritativo + margen por ancla/sprite PNG (issue #10).
  */
-export const CONSTRUCTION_SITE_POINTER_RADIUS_PX = 36 * WORLD_LINEAR_SCALE;
+export const CONSTRUCTION_SITE_POINTER_RADIUS_PX =
+  CONSTRUCTION_SITE_WORK_RADIUS_PX + 24 * WORLD_LINEAR_SCALE;
 
 const RESOURCE_NODE_POINTER_RADIUS_FACTOR = 0.38;
 const RESOURCE_NODE_POINTER_MIN_PX = 56 * WORLD_LINEAR_SCALE;

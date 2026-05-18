@@ -15,7 +15,8 @@ export function canVillagerHelpConstruction(scene: GameScene, unitData: UnitData
   if (scene.onlineMode) {
     return unitData.ownerId === scene.playerId && site.ownerId === scene.playerId;
   }
-  return !site.ownerId;
+  /** Offline: obras locales sin dueño (solo cliente) o del mismo jugador tras desconectar del servidor. */
+  return !site.ownerId || site.ownerId === scene.playerId;
 }
 
 export function getLocalConstructionApproachPoint(

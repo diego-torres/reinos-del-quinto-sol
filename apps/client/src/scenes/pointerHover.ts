@@ -44,8 +44,8 @@ export function setupPointerHover(scene: GameScene): void {
 
     hint.setPosition(pointer.x + 14, pointer.y + 18);
 
-    const wx = pointer.worldX;
-    const wy = pointer.worldY;
+    const mainCam = scene.cameras.main;
+    const { x: wx, y: wy } = mainCam.getWorldPoint(pointer.x, pointer.y);
 
     ring.clear();
 

@@ -51,8 +51,32 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
   const unitData = scene.selectedUnit.getData("unit") as UnitData;
   const resourceNode = findResourceNodeAt(scene, x, y);
   const center = findCeremonialCenterAt(scene, x, y);
-  const beast = findBeastAt(scene, x, y);
 
+  /** Antes que la bestia: su radio de puntero (~400px) interceptaba clics en obras cercanas. */
+  const constructionSite = findConstructionSiteAt(scene, x, y);
+  if (constructionSite && canVillagerHelpConstruction(scene, unitData, constructionSite)) {
+    if (scene.onlineMode) {
+      if (sendOnlineAssignConstructionCommand(scene, unitData, constructionSite.id)) {
+        scene.selectedUnit.setData("buildingTarget", undefined);
+        scene.selectedUnit.setData("gatherTarget", undefined);
+        scene.selectedUnit.setData("gatherElapsed", 0);
+        playUnitOrderFeedback(scene, unitData);
+      }
+      return;
+    }
+
+    scene.selectedUnit.setData("buildingTarget", undefined);
+    scene.selectedUnit.setData("gatherTarget", undefined);
+    scene.selectedUnit.setData("gatherElapsed", 0);
+    scene.selectedUnit.setData("constructionTargetId", constructionSite.id);
+    scene.selectedUnit.setData("target", getLocalConstructionApproachPoint(scene.selectedUnit, constructionSite));
+    scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
+    playUnitOrderFeedback(scene, unitData);
+    scene.setStatus(`${unitData.label} ayuda en la obra de ${constructionSite.label}.`);
+    return;
+  }
+
+  const beast = findBeastAt(scene, x, y);
   if (beast) {
     scene.selectedUnit.setData("buildingTarget", undefined);
     scene.selectedUnit.setData("constructionTargetId", undefined);
@@ -85,29 +109,6 @@ export function handleRightClick(scene: GameScene, x: number, y: number): void {
     }
 
     scene.setStatus("El centro ceremonial enemigo solo se puede atacar en modo online.");
-    return;
-  }
-
-  const constructionSite = findConstructionSiteAt(scene, x, y);
-  if (constructionSite && canVillagerHelpConstruction(scene, unitData, constructionSite)) {
-    if (scene.onlineMode) {
-      if (sendOnlineAssignConstructionCommand(scene, unitData, constructionSite.id)) {
-        scene.selectedUnit.setData("buildingTarget", undefined);
-        scene.selectedUnit.setData("gatherTarget", undefined);
-        scene.selectedUnit.setData("gatherElapsed", 0);
-        playUnitOrderFeedback(scene, unitData);
-      }
-      return;
-    }
-
-    scene.selectedUnit.setData("buildingTarget", undefined);
-    scene.selectedUnit.setData("gatherTarget", undefined);
-    scene.selectedUnit.setData("gatherElapsed", 0);
-    scene.selectedUnit.setData("constructionTargetId", constructionSite.id);
-    scene.selectedUnit.setData("target", getLocalConstructionApproachPoint(scene.selectedUnit, constructionSite));
-    scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
-    playUnitOrderFeedback(scene, unitData);
-    scene.setStatus(`${unitData.label} ayuda en la obra de ${constructionSite.label}.`);
     return;
   }
 
@@ -410,6 +411,7 @@ export function trainVillager(scene: GameScene): void {
       label: "Aldeano",
       color: 0xe5c16f,
       speed: 170 * WORLD_LINEAR_SCALE,
+      ...(scene.playerId ? { ownerId: scene.playerId } : {}),
       skin: createVillagerSkin(`local:aldeano-${scene.nextUnitId}`, resolveVillagerCulture(scene)),
     });
     scene.isTrainingVillager = false;
@@ -454,6 +456,7 @@ export function trainWarrior(scene: GameScene): void {
       label: "Guerrero",
       color: 0xb84a3b,
       speed: 190 * WORLD_LINEAR_SCALE,
+      ...(scene.playerId ? { ownerId: scene.playerId } : {}),
     });
     scene.isTrainingWarrior = false;
     selectUnit(scene, unit);
