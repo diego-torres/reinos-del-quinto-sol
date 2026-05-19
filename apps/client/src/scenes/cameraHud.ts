@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GAME_TITLE } from "@reinos/shared";
+import { GAME_ICON_ASSET_KEY } from "../art.js";
 
 export type HudSceneHost = Phaser.Scene & {
   hudRoot?: Phaser.GameObjects.Container;
@@ -38,7 +39,12 @@ export function createHud(scene: HudSceneHost): void {
   panel.setOrigin(0);
   panel.setStrokeStyle(2, 0xd7bc73, 0.55);
 
-  const titleText = new Phaser.GameObjects.Text(scene, 18, 12, GAME_TITLE, {
+  const iconSize = 40;
+  const titleIcon = new Phaser.GameObjects.Image(scene, 18 + iconSize / 2, 12 + 14, GAME_ICON_ASSET_KEY);
+  titleIcon.setOrigin(0.5);
+  titleIcon.setDisplaySize(iconSize, iconSize);
+
+  const titleText = new Phaser.GameObjects.Text(scene, 18 + iconSize + 10, 12, GAME_TITLE, {
     fontFamily: "Georgia, serif",
     fontSize: "24px",
     color: "#f5e5b0",
@@ -68,7 +74,7 @@ export function createHud(scene: HudSceneHost): void {
     color: "#ffffff",
   });
 
-  hud.add([panel, titleText, scene.resourceText, scene.carryCapacityText, scene.onlineText, scene.statusText]);
+  hud.add([panel, titleIcon, titleText, scene.resourceText, scene.carryCapacityText, scene.onlineText, scene.statusText]);
   scene.add.existing(hud);
   scene.cameras.main.ignore(hud);
 }

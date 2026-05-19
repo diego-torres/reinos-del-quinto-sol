@@ -1,7 +1,4 @@
-import {
-  CEREMONIAL_CENTER_CULTURES,
-  normalizeCeremonialCenterCulture,
-} from "@reinos/shared";
+import { normalizeCeremonialCenterCulture, type CeremonialCenterCulture } from "@reinos/shared";
 import { WORLD_LINEAR_SCALE } from "@reinos/shared";
 import { createCamazotz, drawCeremonialCenter, drawResourceClusters, drawTerrain } from "../art.js";
 import { CEREMONIAL_CENTER, WORLD_HEIGHT, WORLD_WIDTH } from "../rules.js";
@@ -14,7 +11,7 @@ import {
 } from "./explorationFog.js";
 import type { GameScene } from "./gameScene.js";
 
-export function bootstrapOfflineStartingArea(scene: GameScene): void {
+export function bootstrapOfflineStartingArea(scene: GameScene, culture: CeremonialCenterCulture): void {
   drawTerrain(scene);
   createExplorationFog(scene);
   drawResourceClusters(scene, scene.registerResourceNode.bind(scene));
@@ -22,9 +19,7 @@ export function bootstrapOfflineStartingArea(scene: GameScene): void {
   const mapMargin = 480 * WORLD_LINEAR_SCALE;
   const cx = mapMargin + Math.random() * (WORLD_WIDTH - mapMargin * 2);
   const cy = mapMargin + Math.random() * (WORLD_HEIGHT - mapMargin * 2);
-  const offlineCulture = normalizeCeremonialCenterCulture(
-    CEREMONIAL_CENTER_CULTURES[Math.floor(Math.random() * CEREMONIAL_CENTER_CULTURES.length)]!,
-  );
+  const offlineCulture = normalizeCeremonialCenterCulture(culture);
   const centerContainer = drawCeremonialCenter(scene, cx, cy, offlineCulture);
   scene.offlineFallbackCenter = {
     x: cx,

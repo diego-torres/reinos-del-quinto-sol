@@ -13,6 +13,11 @@ import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./rules.js";
 export const HOUSE_ASSET_KEY = "building-house-flat";
 export const VILLAGER_ASSET_KEY = "unit-villager-flat";
 
+/** Cartel de identidad (`assets/sprites/poster.png`), pantalla de apertura. */
+export const GAME_POSTER_ASSET_KEY = "game-poster";
+/** Icono del juego (`assets/sprites/icon.png`), HUD y marca en cliente. */
+export const GAME_ICON_ASSET_KEY = "game-icon";
+
 /** Silueta de edificios respecto a aldeanos (~3× lectura RTS; issue #7). */
 export const BUILDING_VISUAL_SCALE = 2.5;
 

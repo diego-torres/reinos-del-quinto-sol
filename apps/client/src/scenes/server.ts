@@ -245,17 +245,14 @@ export function sendJoinGame(scene: GameScene, culture: CeremonialCenterCulture)
   scene.socket.send(JSON.stringify(message));
 }
 
-function ensureCulturePickerDom(scene: GameScene): void {
-  if (scene.culturePickerRoot) return;
+function ensureCulturePickerShell(scene: GameScene): HTMLDivElement {
+  if (scene.culturePickerRoot) return scene.culturePickerRoot;
 
   const root = document.createElement("div");
   root.className = "culture-picker-root";
   root.setAttribute("role", "dialog");
   root.setAttribute("aria-modal", "true");
   root.setAttribute("aria-label", "Elegir cultura");
-
-  const inner = document.createElement("div");
-  inner.className = "culture-picker-panel";
 
   const title = document.createElement("h2");
   title.className = "culture-picker-title";
@@ -266,23 +263,38 @@ function ensureCulturePickerDom(scene: GameScene): void {
   hint.textContent =
     "Tu centro ceremonial aparece en una posición aleatoria del mapa; la cultura define su arte.";
 
-  for (const culture of CEREMONIAL_CENTER_CULTURES) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "culture-picker-option";
-    btn.textContent = CEREMONIAL_CENTER_LABELS[culture];
-    btn.addEventListener("click", () => sendJoinGame(scene, culture));
-    inner.appendChild(btn);
-  }
+  const inner = document.createElement("div");
+  inner.className = "culture-picker-panel";
 
   root.appendChild(title);
   root.appendChild(hint);
   root.appendChild(inner);
   document.body.appendChild(root);
   scene.culturePickerRoot = root;
+  return root;
 }
 
-function hideCulturePicker(scene: GameScene): void {
+/** Abre el selector con botones que llaman a `onSelect` (reemplaza handlers anteriores). */
+export function populateCulturePicker(scene: GameScene, onSelect: (culture: CeremonialCenterCulture) => void): void {
+  const root = ensureCulturePickerShell(scene);
+  const inner = root.querySelector(".culture-picker-panel");
+  if (!inner) return;
+
+  inner.replaceChildren();
+
+  for (const culture of CEREMONIAL_CENTER_CULTURES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "culture-picker-option";
+    btn.textContent = CEREMONIAL_CENTER_LABELS[culture];
+    btn.addEventListener("click", () => onSelect(culture));
+    inner.appendChild(btn);
+  }
+
+  root.style.display = "flex";
+}
+
+export function hideCulturePicker(scene: GameScene): void {
   if (!scene.culturePickerRoot) return;
   scene.culturePickerRoot.style.display = "none";
 }
@@ -302,7 +314,20 @@ function syncCulturePicker(scene: GameScene): void {
     return;
   }
 
-  ensureCulturePickerDom(scene);
+  if (scene.chosenCeremonyCulture) {
+    if (!scene.joinGameSent) {
+      scene.joinGameSent = true;
+      sendJoinGame(scene, scene.chosenCeremonyCulture);
+    }
+    hideCulturePicker(scene);
+    scene.setStatus("Entrando al mapa...");
+    return;
+  }
+
+  if (!scene.manualOnlineCulturePickerReady) {
+    populateCulturePicker(scene, (culture) => sendJoinGame(scene, culture));
+    scene.manualOnlineCulturePickerReady = true;
+  }
   scene.culturePickerRoot!.style.display = "flex";
   scene.setStatus("Elige tu cultura para entrar al mapa.");
 }

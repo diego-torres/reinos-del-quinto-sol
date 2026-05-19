@@ -11,6 +11,8 @@ import {
 import {
   CEREMONIAL_CENTER_TEXTURE_KEYS,
   CONSTRUCTION_TEXTURE_KEYS,
+  GAME_ICON_ASSET_KEY,
+  GAME_POSTER_ASSET_KEY,
   HOUSE_ASSET_KEY,
   HOUSE_TEXTURE_KEYS,
   TELPOCHCALLI_TEXTURE_KEYS,
@@ -41,7 +43,8 @@ import { redrawExplorationFogIfDirty, revealFromLocalPlayerUnits } from "./explo
 import { advanceOfflineConstruction, refreshAllConstructionVisuals } from "./buildingConstruction.js";
 import { bootstrapOfflineStartingArea } from "./mapInit.js";
 import { preloadMusicAssets, refreshBackgroundMusicState, startBackgroundMusic, type BackgroundMusicHost } from "./music.js";
-import { connectToGameServer } from "./server.js";
+import { connectToGameServer, hideCulturePicker, populateCulturePicker } from "./server.js";
+import { showTitleSplash } from "./titleSplash.js";
 import {
   createUnit as createUnitModule,
   getUnitCargo as getUnitCargoModule,
@@ -69,6 +72,8 @@ import mayaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/maya.png";
 import mexicaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/mexica.png";
 import tlaxcaltecaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/tlaxcalteca.png";
 import incaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/inca.png";
+import gameIconAsset from "@repo-assets/sprites/icon.png";
+import gamePosterAsset from "@repo-assets/sprites/poster.png";
 import { createVillagerSkin, preloadVillagerSpriteSheets } from "../villagerAssets.js";
 
 /** Escena principal del juego (mapa, unidades, economía y sincronización online). */
@@ -111,6 +116,16 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
   battleMusic?: Phaser.Sound.BaseSound;
   activeMusicMode: "milpa" | "battle" = "milpa";
   initializedOnlineUnits = false;
+  /** Evita gameplay y camara hasta cerrar la pantalla del cartel. */
+  titleSplashActive = false;
+  /** Tras el cartel: esperando elegir cultura en el overlay DOM. */
+  cultureChoicePending = false;
+  /** Cultura elegida antes de crear el mapa local; el servidor recibe la misma en join-game. */
+  chosenCeremonyCulture?: CeremonialCenterCulture;
+  /** Evita enviar join-game repetidas veces al estado online. */
+  joinGameSent = false;
+  /** Selector manual solo si hay sesion online sin cultura previa (caso excepcional). */
+  manualOnlineCulturePickerReady = false;
   population = 2;
   populationLimit = 5;
   resources: Record<Resource, number> = {
@@ -143,6 +158,8 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     this.load.image(TELPOCHCALLI_TEXTURE_KEYS.mexica, mexicaTelpochcalliAsset);
     this.load.image(TELPOCHCALLI_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaTelpochcalliAsset);
     this.load.image(TELPOCHCALLI_TEXTURE_KEYS.inca, incaTelpochcalliAsset);
+    this.load.image(GAME_POSTER_ASSET_KEY, gamePosterAsset);
+    this.load.image(GAME_ICON_ASSET_KEY, gameIconAsset);
     preloadVillagerSpriteSheets(this);
     preloadMusicAssets(this);
   }
@@ -150,25 +167,35 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
   create(): void {
     setupHudCamera(this);
 
-    this.cameras.main.setBackgroundColor("#B96542");
+    this.cameras.main.setBackgroundColor("#17261d");
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-    bootstrapOfflineStartingArea(this);
+    showTitleSplash(this, () => {
+      this.cultureChoicePending = true;
+      populateCulturePicker(this, (culture) => {
+        this.chosenCeremonyCulture = culture;
+        this.cultureChoicePending = false;
+        hideCulturePicker(this);
 
-    createHud(this);
+        this.cameras.main.setBackgroundColor("#B96542");
+        bootstrapOfflineStartingArea(this, culture);
+        createHud(this);
 
-    installDebugApi(this);
-    this.syncDomState();
-    connectToGameServer(this);
+        installDebugApi(this);
+        this.syncDomState();
+        connectToGameServer(this);
 
-    bindGameplayInput(this);
-    setupPointerHover(this);
+        bindGameplayInput(this);
+        setupPointerHover(this);
 
-    startBackgroundMusic(this);
+        startBackgroundMusic(this);
+      });
+    });
   }
 
   update(_time: number, delta: number): void {
+    if (this.titleSplashActive || this.cultureChoicePending) return;
     panCamera(this, delta);
     updateUnitsModule(this, delta);
     advanceOfflineConstruction(this, delta);

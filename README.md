@@ -2,6 +2,14 @@
 
 Juego de estrategia en tiempo real online, open source, inspirado en las civilizaciones prehispanicas de Mesoamerica.
 
+![Cartel — Reinos del Quinto Sol](assets/sprites/poster.png)
+
+<p align="center">
+  <img src="assets/sprites/icon.png" alt="Icono — Reinos del Quinto Sol" width="96" height="96" />
+</p>
+
+Los archivos fuente del cartel y el icono están en [`assets/sprites/poster.png`](assets/sprites/poster.png) y [`assets/sprites/icon.png`](assets/sprites/icon.png) (tambien hay [`assets/sprites/icon.svg`](assets/sprites/icon.svg) vectorial).
+
 ## Objetivo
 
 Construir un RTS online con jugabilidad familiar para fans de los clasicos del genero: recoleccion de recursos, construccion de ciudades, unidades militares, tecnologias, exploracion, niebla de guerra y partidas competitivas.
