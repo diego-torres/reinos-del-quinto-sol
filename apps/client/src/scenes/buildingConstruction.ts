@@ -123,7 +123,7 @@ export function replaceBuildingWithCompleteVisual(scene: GameScene, building: Bu
   building.constructionProgressMaxWidth = undefined;
   building.container = building.kind === "casa"
     ? drawHouse(scene, building.x, building.y, building.culture)
-    : drawTelpochcalli(scene, building.x, building.y);
+    : drawTelpochcalli(scene, building.x, building.y, building.culture);
 }
 
 function finalizeOfflineBuildingConstruction(scene: GameScene, building: BuildingData): void {

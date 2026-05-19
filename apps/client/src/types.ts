@@ -72,7 +72,7 @@ export type BuildingData = {
   x: number;
   y: number;
   ownerId?: string;
-  /** Texturas de casa / obra según cultura del jugador (issue #10). */
+  /** Casa / telpochcalli terminado por cultura (issues #10, #12) y obra con `assets/sprites/construccion/`. */
   culture: CeremonialCenterCulture;
   populationBonus: number;
   /** Aldeano-segundos restantes; 0 = terminado. */

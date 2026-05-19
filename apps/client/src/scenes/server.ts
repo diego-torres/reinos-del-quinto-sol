@@ -13,6 +13,7 @@ import {
   drawHouse,
   drawTelpochcalli,
   labelStyle,
+  telpochcalliDisplayLabel,
 } from "../art.js";
 import { resolveBuildingCultureFromState } from "../buildingCulture.js";
 import {
@@ -171,7 +172,13 @@ export function sendOnlineBuildCommand(scene: GameScene, unitData: UnitData, kin
     x,
     y,
   }));
-  scene.setStatus(`${kind === "casa" ? "Casa" : "Telpochcalli"} enviada al servidor.`);
+  const requestingCulture =
+    scene.playerId !== undefined
+      ? resolveBuildingCultureFromState(scene.onlineState, scene.playerId)
+      : "maya";
+  const structureLabel =
+    kind === "casa" ? "Casa" : telpochcalliDisplayLabel(requestingCulture);
+  scene.setStatus(`${structureLabel} enviada al servidor.`);
   return true;
 }
 
@@ -431,7 +438,7 @@ function applyOnlineBuildings(scene: GameScene, state: OnlineGameState): void {
       } else {
         building.container = building.kind === "casa"
           ? drawHouse(scene, building.x, building.y, building.culture)
-          : drawTelpochcalli(scene, building.x, building.y);
+          : drawTelpochcalli(scene, building.x, building.y, building.culture);
       }
       scene.buildings.push(building);
     } else {

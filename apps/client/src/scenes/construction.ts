@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { getBuildingConstructionTotalWork } from "@reinos/shared";
 import { getBuildingPlacementExclusionRadius, getBuildingResourceClearance } from "@reinos/shared";
+import { telpochcalliDisplayLabel } from "../art.js";
 import {
   HOUSE_POPULATION_BONUS,
   HOUSE_WOOD_COST,
@@ -10,7 +11,7 @@ import {
   WORLD_WIDTH,
   getBuildingCost,
 } from "../rules.js";
-import { resolveOfflinePlacementCulture } from "../buildingCulture.js";
+import { resolveOfflinePlacementCulture, resolveBuildingCultureFromState } from "../buildingCulture.js";
 import type { BuildingData, BuildingKind, UnitData, UnitWorkState } from "../types.js";
 import type { GameScene } from "./gameScene.js";
 import { canAfford, formatCost, spendResources } from "./economy.js";
@@ -95,7 +96,11 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
   }
 
   if (scene.onlineMode && sendOnlineBuildCommand(scene, unitData, scene.buildMode, x, y)) {
-    const label = scene.buildMode === "casa" ? "Casa" : "Telpochcalli";
+    const requestingCulture =
+      scene.playerId !== undefined
+        ? resolveBuildingCultureFromState(scene.onlineState, scene.playerId)
+        : resolveOfflinePlacementCulture(scene.offlineFallbackCenter?.culture);
+    const label = scene.buildMode === "casa" ? "Casa" : telpochcalliDisplayLabel(requestingCulture);
     scene.selectedUnit.setData("buildingTarget", undefined);
     scene.selectedUnit.setData("constructionTargetId", undefined);
     playUnitOrderFeedback(scene, unitData);
@@ -104,13 +109,14 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
   }
 
   const totalWork = getBuildingConstructionTotalWork(scene.buildMode);
+  const placementCulture = resolveOfflinePlacementCulture(scene.offlineFallbackCenter?.culture);
   const building: BuildingData = {
     id: `${scene.buildMode}-${scene.buildings.length + 1}`,
     kind: scene.buildMode,
-    label: scene.buildMode === "casa" ? "Casa" : "Telpochcalli",
+    label: scene.buildMode === "casa" ? "Casa" : telpochcalliDisplayLabel(placementCulture),
     x,
     y,
-    culture: resolveOfflinePlacementCulture(scene.offlineFallbackCenter?.culture),
+    culture: placementCulture,
     populationBonus: scene.buildMode === "casa" ? HOUSE_POPULATION_BONUS : 0,
     constructionWorkRemaining: totalWork,
   };
@@ -128,7 +134,7 @@ export function placeBuilding(scene: GameScene, x: number, y: number): void {
   scene.selectedUnit.setData("workState", "moving" satisfies UnitWorkState);
 
   scene.updateHudResources();
-  const label = building.kind === "casa" ? "Casa" : "Telpochcalli";
+  const label = building.kind === "casa" ? "Casa" : telpochcalliDisplayLabel(building.culture);
   cancelBuildMode(
     scene,
     `${label}: obra iniciada. Mas aldeanos cerca aceleran el avance. Clic derecho en la obra para asignar.`,

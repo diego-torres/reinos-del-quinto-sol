@@ -36,6 +36,14 @@ export const HOUSE_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
   maya: "house-culture-maya",
 };
 
+/** Telpochcalli terminado por cultura (`assets/sprites/telpochcalli/`). Tipos jugables siguen siendo `telpochcalli` en código compartido. */
+export const TELPOCHCALLI_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
+  mexica: "telpochcalli-culture-mexica",
+  tlaxcalteca: "telpochcalli-culture-tlaxcalteca",
+  inca: "telpochcalli-culture-inca",
+  maya: "telpochcalli-culture-maya",
+};
+
 /** Sprites de obra por cultura (`assets/sprites/construccion/`): casa y telpochcalli. */
 export const CONSTRUCTION_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
   mexica: "construction-culture-mexica",
@@ -61,6 +69,23 @@ function resolveHouseTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCu
   if (scene.textures.exists(fallback)) return fallback;
   if (scene.textures.exists(HOUSE_ASSET_KEY)) return HOUSE_ASSET_KEY;
   return undefined;
+}
+
+function resolveTelpochcalliTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCulture): string | undefined {
+  const normalized = normalizeCeremonialCenterCulture(culture);
+  const primary = TELPOCHCALLI_TEXTURE_KEYS[normalized];
+  if (scene.textures.exists(primary)) return primary;
+  const fallback = TELPOCHCALLI_TEXTURE_KEYS.maya;
+  if (scene.textures.exists(fallback)) return fallback;
+  return undefined;
+}
+
+/** Nombre corto que ve el jugador; el tipo de reglas sigue siendo `telpochcalli` (`docs/diseno/nombres-edificios.md`). */
+export function telpochcalliDisplayLabel(culture: CeremonialCenterCulture): string {
+  const normalized = normalizeCeremonialCenterCulture(culture);
+  if (normalized === "maya") return "Popol na";
+  if (normalized === "inca") return "Kallanka";
+  return "Telpochcalli";
 }
 
 function resolveConstructionTextureKey(scene: Phaser.Scene, culture: CeremonialCenterCulture): string | undefined {
@@ -174,26 +199,34 @@ export function drawHouse(scene: Phaser.Scene, x: number, y: number, culture: Ce
   return house;
 }
 
-export function drawTelpochcalli(scene: Phaser.Scene, x: number, y: number) {
+export function drawTelpochcalli(scene: Phaser.Scene, x: number, y: number, culture: CeremonialCenterCulture) {
+  const cultureNorm = normalizeCeremonialCenterCulture(culture);
   const building = scene.add.container(x, y);
   building.setDepth(2);
-  building.add(scene.add.ellipse(0, 54 * B, 144 * B, 28 * B, 0x000000, 0.18));
-  building.add(scene.add.rectangle(0, 28 * B, 126 * B, 72 * B, 0x9b6b42).setStrokeStyle(4, 0x4d2c21));
-  building.add(scene.add.rectangle(0, -20 * B, 148 * B, 36 * B, 0x7d3f2b).setStrokeStyle(4, 0x351d17));
-  building.add(
-    scene.add
-      .triangle(-46 * B, -44 * B, -20 * B, -16 * B, -46 * B, -76 * B, -72 * B, -16 * B, 0xd7bc73)
-      .setStrokeStyle(3, 0x4d2c21),
-  );
-  building.add(
-    scene.add
-      .triangle(46 * B, -44 * B, 72 * B, -16 * B, 46 * B, -76 * B, 20 * B, -16 * B, 0xd7bc73)
-      .setStrokeStyle(3, 0x4d2c21),
-  );
-  building.add(scene.add.rectangle(0, 38 * B, 34 * B, 48 * B, 0x271913).setStrokeStyle(2, 0x120b08));
-  building.add(scene.add.rectangle(-36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
-  building.add(scene.add.rectangle(36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
-  building.add(scene.add.text(0, 104 * B, "Telpochcalli", labelStyle(13)).setOrigin(0.5));
+  const h = 132 * B;
+  const texKey = resolveTelpochcalliTextureKey(scene, cultureNorm);
+  const nameLabel = telpochcalliDisplayLabel(cultureNorm);
+  if (texKey) {
+    building.add(scene.add.image(0, 10 * B, texKey).setDisplaySize(h, h));
+  } else {
+    building.add(scene.add.ellipse(0, 54 * B, 144 * B, 28 * B, 0x000000, 0.18));
+    building.add(scene.add.rectangle(0, 28 * B, 126 * B, 72 * B, 0x9b6b42).setStrokeStyle(4, 0x4d2c21));
+    building.add(scene.add.rectangle(0, -20 * B, 148 * B, 36 * B, 0x7d3f2b).setStrokeStyle(4, 0x351d17));
+    building.add(
+      scene.add
+        .triangle(-46 * B, -44 * B, -20 * B, -16 * B, -46 * B, -76 * B, -72 * B, -16 * B, 0xd7bc73)
+        .setStrokeStyle(3, 0x4d2c21),
+    );
+    building.add(
+      scene.add
+        .triangle(46 * B, -44 * B, 72 * B, -16 * B, 46 * B, -76 * B, 20 * B, -16 * B, 0xd7bc73)
+        .setStrokeStyle(3, 0x4d2c21),
+    );
+    building.add(scene.add.rectangle(0, 38 * B, 34 * B, 48 * B, 0x271913).setStrokeStyle(2, 0x120b08));
+    building.add(scene.add.rectangle(-36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+    building.add(scene.add.rectangle(36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+  }
+  building.add(scene.add.text(0, 104 * B, nameLabel, labelStyle(13)).setOrigin(0.5));
   return building;
 }
 
@@ -249,11 +282,9 @@ export function drawBuildingConstructionSite(
     container.add(scene.add.image(0, 8 * B, constructionKey!).setDisplaySize(ch, ch));
   }
 
-  container.add(
-    scene.add
-      .text(0, baseY + 34 * B, kind === "casa" ? "Casa · obra" : "Telpochcalli · obra", labelStyle(12))
-      .setOrigin(0.5),
-  );
+  const kindLabel =
+    kind === "casa" ? "Casa" : telpochcalliDisplayLabel(cultureNorm);
+  container.add(scene.add.text(0, baseY + 34 * B, `${kindLabel} · obra`, labelStyle(12)).setOrigin(0.5));
 
   const barW = kind === "casa" ? 102 * B : 122 * B;
   const barH = 11 * B;

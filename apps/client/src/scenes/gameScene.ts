@@ -13,6 +13,8 @@ import {
   CONSTRUCTION_TEXTURE_KEYS,
   HOUSE_ASSET_KEY,
   HOUSE_TEXTURE_KEYS,
+  TELPOCHCALLI_TEXTURE_KEYS,
+  telpochcalliDisplayLabel,
   VILLAGER_ASSET_KEY,
 } from "../art.js";
 import { resolveBuildingCultureFromState } from "../buildingCulture.js";
@@ -63,6 +65,10 @@ import mayaConstruccionAsset from "@repo-assets/sprites/construccion/maya.png";
 import mexicaConstruccionAsset from "@repo-assets/sprites/construccion/mexica.png";
 import tlaxcaltecaConstruccionAsset from "@repo-assets/sprites/construccion/tlaxcalteca.png";
 import incaConstruccionAsset from "@repo-assets/sprites/construccion/inca.png";
+import mayaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/maya.png";
+import mexicaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/mexica.png";
+import tlaxcaltecaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/tlaxcalteca.png";
+import incaTelpochcalliAsset from "@repo-assets/sprites/telpochcalli/inca.png";
 import { createVillagerSkin, preloadVillagerSpriteSheets } from "../villagerAssets.js";
 
 /** Escena principal del juego (mapa, unidades, economía y sincronización online). */
@@ -133,6 +139,10 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
     this.load.image(CONSTRUCTION_TEXTURE_KEYS.mexica, mexicaConstruccionAsset);
     this.load.image(CONSTRUCTION_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaConstruccionAsset);
     this.load.image(CONSTRUCTION_TEXTURE_KEYS.inca, incaConstruccionAsset);
+    this.load.image(TELPOCHCALLI_TEXTURE_KEYS.maya, mayaTelpochcalliAsset);
+    this.load.image(TELPOCHCALLI_TEXTURE_KEYS.mexica, mexicaTelpochcalliAsset);
+    this.load.image(TELPOCHCALLI_TEXTURE_KEYS.tlaxcalteca, tlaxcaltecaTelpochcalliAsset);
+    this.load.image(TELPOCHCALLI_TEXTURE_KEYS.inca, incaTelpochcalliAsset);
     preloadVillagerSpriteSheets(this);
     preloadMusicAssets(this);
   }
@@ -308,14 +318,15 @@ export class GameScene extends Phaser.Scene implements HudSceneHost, BackgroundM
   }
 
   onlineBuildingData(buildingState: OnlineBuildingState): BuildingData {
+    const culture = resolveBuildingCultureFromState(this.onlineState, buildingState.ownerId);
     return {
       id: buildingState.id,
       ownerId: buildingState.ownerId,
       kind: buildingState.kind,
-      label: buildingState.kind === "casa" ? "Casa" : "Telpochcalli",
+      label: buildingState.kind === "casa" ? "Casa" : telpochcalliDisplayLabel(culture),
       x: buildingState.x,
       y: buildingState.y,
-      culture: resolveBuildingCultureFromState(this.onlineState, buildingState.ownerId),
+      culture,
       populationBonus: buildingState.kind === "casa" ? HOUSE_POPULATION_BONUS : 0,
       constructionWorkRemaining: buildingState.constructionWorkRemaining,
     };
