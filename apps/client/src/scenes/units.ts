@@ -42,6 +42,7 @@ import {
   sendOnlineDepositCommand,
   sendOnlineGatherCommand,
   sendOnlineMoveCommand,
+  sendOnlineTrainUnitCommand,
 } from "./server.js";
 import { playUnitOrderFeedback, playUnitSelectionFeedback } from "./unitAudio.js";
 
@@ -396,6 +397,10 @@ export function trainVillager(scene: GameScene): void {
 
   if (!canTrain(scene, "aldeano")) return;
 
+  if (scene.onlineMode && sendOnlineTrainUnitCommand(scene, "aldeano")) {
+    return;
+  }
+
   scene.isTrainingVillager = true;
   spendTrainingCost(scene, "aldeano");
   scene.population += TRAINING.aldeano.population;
@@ -405,14 +410,15 @@ export function trainVillager(scene: GameScene): void {
   scene.time.delayedCall(TRAINING.aldeano.durationMs, () => {
     const centerCoords = getOwnCeremonialCenter(scene);
     const spawn = getSpawnPointNear(scene, centerCoords.x, centerCoords.y, 230 * WORLD_LINEAR_SCALE);
+    const unitIdNum = scene.nextUnitId++;
     const unit = createUnit(scene, spawn.x, spawn.y, {
-      id: `aldeano-${scene.nextUnitId++}`,
+      id: `aldeano-${unitIdNum}`,
       kind: "aldeano",
       label: "Aldeano",
       color: 0xe5c16f,
       speed: 170 * WORLD_LINEAR_SCALE,
       ...(scene.playerId ? { ownerId: scene.playerId } : {}),
-      skin: createVillagerSkin(`local:aldeano-${scene.nextUnitId}`, resolveVillagerCulture(scene)),
+      skin: createVillagerSkin(`local:aldeano-${unitIdNum}`, resolveVillagerCulture(scene)),
     });
     scene.isTrainingVillager = false;
     selectUnit(scene, unit);
@@ -442,6 +448,10 @@ export function trainWarrior(scene: GameScene): void {
 
   if (!canTrain(scene, "guerrero")) return;
 
+  if (scene.onlineMode && sendOnlineTrainUnitCommand(scene, "guerrero")) {
+    return;
+  }
+
   scene.isTrainingWarrior = true;
   spendTrainingCost(scene, "guerrero");
   scene.population += TRAINING.guerrero.population;
@@ -450,8 +460,9 @@ export function trainWarrior(scene: GameScene): void {
 
   scene.time.delayedCall(TRAINING.guerrero.durationMs, () => {
     const spawn = getSpawnPointNear(scene, telpochcalli.x, telpochcalli.y, 150 * WORLD_LINEAR_SCALE);
+    const unitIdNum = scene.nextUnitId++;
     const unit = createUnit(scene, spawn.x, spawn.y, {
-      id: `guerrero-${scene.nextUnitId++}`,
+      id: `guerrero-${unitIdNum}`,
       kind: "guerrero",
       label: "Guerrero",
       color: 0xb84a3b,

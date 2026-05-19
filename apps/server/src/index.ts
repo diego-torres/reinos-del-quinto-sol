@@ -58,6 +58,15 @@ const TELPOCHCALLI_COST: Partial<Record<Resource, number>> = {
   madera: 120,
   piedra: 40,
 };
+const BASE_POPULATION_LIMIT = 5;
+const HOUSE_POPULATION_BONUS = 5;
+const TRAIN_ALDEANO_COST: Partial<Record<Resource, number>> = { alimento: 50 };
+const TRAIN_GUERRERO_COST: Partial<Record<Resource, number>> = {
+  alimento: 60,
+  obsidiana: 20,
+};
+const ALDEANO_TRAIN_SPAWN_RADIUS = 230 * WORLD_LINEAR_SCALE;
+const GUERRERO_TRAIN_SPAWN_RADIUS = 150 * WORLD_LINEAR_SCALE;
 const WARRIOR_ATTACK = 14;
 const WARRIOR_RANGE = 78 * WORLD_LINEAR_SCALE;
 const WARRIOR_CENTER_ATTACK_INSET_PX = 12 * WORLD_LINEAR_SCALE;
@@ -183,6 +192,76 @@ function createUnit(
   };
 }
 
+function getPlayerPopulationCapacity(playerId: string): number {
+  const completedCasas = state.buildings.filter(
+    (building) =>
+      building.ownerId === playerId &&
+      building.kind === "casa" &&
+      building.constructionWorkRemaining <= 0,
+  ).length;
+  return BASE_POPULATION_LIMIT + completedCasas * HOUSE_POPULATION_BONUS;
+}
+
+function populationUsedByPlayer(playerId: string): number {
+  return state.units.filter((unit) => unit.ownerId === playerId).length;
+}
+
+function allocateUnitId(playerId: string, kind: OnlineUnitKind): string {
+  const slug = kind === "aldeano" ? "aldeano" : "guerrero";
+  let maxSeq = 0;
+  const prefix = `${playerId}-${slug}-`;
+  for (const unit of state.units) {
+    if (!unit.id.startsWith(prefix)) continue;
+    const suffix = Number.parseInt(unit.id.slice(prefix.length), 10);
+    if (!Number.isNaN(suffix)) maxSeq = Math.max(maxSeq, suffix);
+  }
+  return `${prefix}${maxSeq + 1}`;
+}
+
+function spawnTrainPoint(centerX: number, centerY: number, distance: number, spawnIndex: number): { x: number; y: number } {
+  const angleDeg = 35 + spawnIndex * 37;
+  const rad = (angleDeg * Math.PI) / 180;
+  return {
+    x: clamp(centerX + Math.cos(rad) * distance, WORLD_EDGE_MARGIN, ONLINE_WORLD.width - WORLD_EDGE_MARGIN),
+    y: clamp(centerY + Math.sin(rad) * distance, WORLD_EDGE_MARGIN, ONLINE_WORLD.height - WORLD_EDGE_MARGIN),
+  };
+}
+
+function tryTrainUnit(playerId: string, kind: OnlineUnitKind): boolean {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  const center =
+    kind === "aldeano"
+      ? getPlayerCenter(playerId)
+      : null;
+  if (kind === "aldeano" && !center) return false;
+  if (!player) return false;
+
+  const cost = kind === "aldeano" ? TRAIN_ALDEANO_COST : TRAIN_GUERRERO_COST;
+  if (!canAfford(player.resources, cost)) return false;
+  if (populationUsedByPlayer(playerId) + 1 > getPlayerPopulationCapacity(playerId)) return false;
+
+  if (kind === "guerrero") {
+    const telpochcalli = state.buildings.find(
+      (building) =>
+        building.ownerId === playerId &&
+        building.kind === "telpochcalli" &&
+        building.constructionWorkRemaining <= 0,
+    );
+    if (!telpochcalli) return false;
+    spendResources(player.resources, cost);
+    const spawnIndex = populationUsedByPlayer(playerId);
+    const { x, y } = spawnTrainPoint(telpochcalli.x, telpochcalli.y, GUERRERO_TRAIN_SPAWN_RADIUS, spawnIndex);
+    state.units.push(createUnit(allocateUnitId(playerId, kind), playerId, kind, x, y));
+    return true;
+  }
+
+  spendResources(player.resources, cost);
+  const spawnIndex = populationUsedByPlayer(playerId);
+  const { x, y } = spawnTrainPoint(center!.x, center!.y, ALDEANO_TRAIN_SPAWN_RADIUS, spawnIndex);
+  state.units.push(createUnit(allocateUnitId(playerId, kind), playerId, kind, x, y));
+  return true;
+}
+
 function handleClientMessage(playerId: string, raw: string) {
   let message: ClientMessage;
   try {
@@ -255,6 +334,14 @@ function handleClientMessage(playerId: string, raw: string) {
     unit.target = getCenterApproachPoint(unit, center);
     unit.workState = "attacking";
     unitAttackElapsed.set(unit.id, 0);
+    return;
+  }
+
+  if (message.type === "train-unit") {
+    if (tryTrainUnit(playerId, message.kind)) {
+      broadcastState();
+    }
+    return;
   }
 }
 

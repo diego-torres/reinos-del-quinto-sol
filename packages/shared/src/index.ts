@@ -304,4 +304,9 @@ export type ClientMessage =
       type: "attack-center";
       unitId: string;
       centerId: string;
+    }
+  | {
+      /** Entreno autoritativo desde centro / telpochcalli (solo online). */
+      type: "train-unit";
+      kind: OnlineUnitKind;
     };

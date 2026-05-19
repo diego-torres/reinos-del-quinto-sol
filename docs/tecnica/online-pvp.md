@@ -12,6 +12,7 @@ El servidor WebSocket mantiene el estado autoritativo inicial de la partida para
 - nodos de recursos del mapa
 - recoleccion, carga y deposito de aldeanos
 - construccion de casa y telpochcalli
+- entrenar aldeano desde el centro ceremonial y guerrero desde un telpochcalli terminado
 - edificios visibles para todos los clientes conectados
 - centros ceremoniales por jugador
 - objetivo de victoria por destruir el centro ceremonial rival
@@ -33,6 +34,7 @@ Al conectarse, el servidor asigna un `playerId`, crea unidades iniciales para es
 - `deposit-resources`: ordena a un aldeano propio depositar su carga en el centro ceremonial.
 - `build-structure`: solicita a un aldeano propio construir una casa o telpochcalli.
 - `attack-center`: ordena a un guerrero propio atacar un centro ceremonial enemigo.
+- `train-unit`: pide crear un **aldeano** (centro ceremonial) o **guerrero** (telpochcalli terminado), con coste y cupo poblacional validados en el servidor.
 
 ### Servidor a cliente
 

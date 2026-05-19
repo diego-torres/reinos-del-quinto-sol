@@ -5,6 +5,7 @@ import {
   type CeremonialCenterCulture,
   type ClientMessage,
   type OnlineGameState,
+  type OnlineUnitKind,
   type ServerMessage,
 } from "@reinos/shared";
 import {
@@ -122,6 +123,23 @@ export function sendOnlineAttackCenterCommand(
     centerId: center.id,
   }));
   scene.setStatus(`${unitData.label} ataca el centro ceremonial enemigo.`);
+  return true;
+}
+
+export function sendOnlineTrainUnitCommand(scene: GameScene, kind: OnlineUnitKind): boolean {
+  if (!scene.socket || scene.socket.readyState !== WebSocket.OPEN) return false;
+  if (!scene.playerId) return false;
+
+  const message: ClientMessage = {
+    type: "train-unit",
+    kind,
+  };
+  scene.socket.send(JSON.stringify(message));
+  scene.setStatus(
+    kind === "aldeano"
+      ? "Solicitando aldeano al servidor..."
+      : "Solicitando guerrero al servidor...",
+  );
   return true;
 }
 
@@ -337,6 +355,10 @@ export function applyOnlineState(scene: GameScene, state: OnlineGameState): void
 
   if (scene.selectedUnit && scene.selectionRing) {
     scene.selectionRing.setPosition(scene.selectedUnit.x, scene.selectedUnit.y + 8 * WORLD_LINEAR_SCALE);
+  }
+
+  if (scene.playerId) {
+    scene.population = state.units.filter((unit) => unit.ownerId === scene.playerId).length;
   }
 
   applyOnlineResources(scene, state);

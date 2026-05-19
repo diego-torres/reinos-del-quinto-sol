@@ -19,6 +19,19 @@ export const BUILDING_VISUAL_SCALE = 2.5;
 const B = BUILDING_VISUAL_SCALE;
 const M = WORLD_LINEAR_SCALE;
 
+/** Sprite cuadrado de casa terminada (px lógicos antes de ×B). */
+const HOUSE_COMPLETE_TEX_PX = 128;
+/** Telpochcalli terminado: ~2× la casa en pantalla (misma regla de suelo que la casa). */
+const TELPOCHCALLI_COMPLETE_TEX_PX = HOUSE_COMPLETE_TEX_PX * 2;
+const HOUSE_COMPLETE_TEX_CENTER_Y = 10;
+
+/** Obra en construcción: misma relación 2× para telpochcalli respecto a casa. */
+const HOUSE_CONSTRUCTION_TEX_PX = 118;
+const TELPOCHCALLI_CONSTRUCTION_TEX_PX = HOUSE_CONSTRUCTION_TEX_PX * 2;
+const HOUSE_CONSTRUCTION_TEX_CENTER_Y = 8;
+/** Base del placeholder del telpochcalli 1× antes de scale(2): pie del óvalo de sombra (≈54+14 en coords locales × B). */
+const TELPOCHCALLI_PLACEHOLDER_UNSCALED_FOOT = 68;
+
 export const CEREMONIAL_CENTER_DISPLAY_SIZE = 280 * B;
 
 export const CEREMONIAL_CENTER_TEXTURE_KEYS: Record<CeremonialCenterCulture, string> = {
@@ -180,10 +193,10 @@ export function drawHouse(scene: Phaser.Scene, x: number, y: number, culture: Ce
   const cultureNorm = normalizeCeremonialCenterCulture(culture);
   const house = scene.add.container(x, y);
   house.setDepth(2);
-  const h = 128 * B;
+  const h = HOUSE_COMPLETE_TEX_PX * B;
   const texKey = resolveHouseTextureKey(scene, cultureNorm);
   if (texKey) {
-    house.add(scene.add.image(0, 10 * B, texKey).setDisplaySize(h, h));
+    house.add(scene.add.image(0, HOUSE_COMPLETE_TEX_CENTER_Y * B, texKey).setDisplaySize(h, h));
   } else {
     house.add(scene.add.ellipse(0, 38 * B, 92 * B, 24 * B, 0x000000, 0.18));
     house.add(scene.add.rectangle(0, 22 * B, 86 * B, 52 * B, 0xb98a58).setStrokeStyle(4, 0x5a3a24));
@@ -203,30 +216,37 @@ export function drawTelpochcalli(scene: Phaser.Scene, x: number, y: number, cult
   const cultureNorm = normalizeCeremonialCenterCulture(culture);
   const building = scene.add.container(x, y);
   building.setDepth(2);
-  const h = 132 * B;
+  const houseH = HOUSE_COMPLETE_TEX_PX * B;
+  const h = TELPOCHCALLI_COMPLETE_TEX_PX * B;
+  const houseBottomY = HOUSE_COMPLETE_TEX_CENTER_Y * B + houseH / 2;
+  const texCenterY = houseBottomY - h / 2;
   const texKey = resolveTelpochcalliTextureKey(scene, cultureNorm);
   const nameLabel = telpochcalliDisplayLabel(cultureNorm);
   if (texKey) {
-    building.add(scene.add.image(0, 10 * B, texKey).setDisplaySize(h, h));
+    building.add(scene.add.image(0, texCenterY, texKey).setDisplaySize(h, h));
   } else {
-    building.add(scene.add.ellipse(0, 54 * B, 144 * B, 28 * B, 0x000000, 0.18));
-    building.add(scene.add.rectangle(0, 28 * B, 126 * B, 72 * B, 0x9b6b42).setStrokeStyle(4, 0x4d2c21));
-    building.add(scene.add.rectangle(0, -20 * B, 148 * B, 36 * B, 0x7d3f2b).setStrokeStyle(4, 0x351d17));
-    building.add(
+    const placeholder = scene.add.container(0, houseBottomY - 2 * TELPOCHCALLI_PLACEHOLDER_UNSCALED_FOOT * B);
+    placeholder.add(scene.add.ellipse(0, 54 * B, 144 * B, 28 * B, 0x000000, 0.18));
+    placeholder.add(scene.add.rectangle(0, 28 * B, 126 * B, 72 * B, 0x9b6b42).setStrokeStyle(4, 0x4d2c21));
+    placeholder.add(scene.add.rectangle(0, -20 * B, 148 * B, 36 * B, 0x7d3f2b).setStrokeStyle(4, 0x351d17));
+    placeholder.add(
       scene.add
         .triangle(-46 * B, -44 * B, -20 * B, -16 * B, -46 * B, -76 * B, -72 * B, -16 * B, 0xd7bc73)
         .setStrokeStyle(3, 0x4d2c21),
     );
-    building.add(
+    placeholder.add(
       scene.add
         .triangle(46 * B, -44 * B, 72 * B, -16 * B, 46 * B, -76 * B, 20 * B, -16 * B, 0xd7bc73)
         .setStrokeStyle(3, 0x4d2c21),
     );
-    building.add(scene.add.rectangle(0, 38 * B, 34 * B, 48 * B, 0x271913).setStrokeStyle(2, 0x120b08));
-    building.add(scene.add.rectangle(-36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
-    building.add(scene.add.rectangle(36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+    placeholder.add(scene.add.rectangle(0, 38 * B, 34 * B, 48 * B, 0x271913).setStrokeStyle(2, 0x120b08));
+    placeholder.add(scene.add.rectangle(-36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+    placeholder.add(scene.add.rectangle(36 * B, 26 * B, 18 * B, 18 * B, 0x223d63, 0.75).setStrokeStyle(2, 0x111c2d));
+    placeholder.setScale(2);
+    building.add(placeholder);
   }
-  building.add(scene.add.text(0, 104 * B, nameLabel, labelStyle(13)).setOrigin(0.5));
+  const labelY = houseBottomY + 28 * B;
+  building.add(scene.add.text(0, labelY, nameLabel, labelStyle(13)).setOrigin(0.5));
   return building;
 }
 
@@ -247,13 +267,19 @@ export function drawBuildingConstructionSite(
   const constructionKey = resolveConstructionTextureKey(scene, cultureNorm);
   const useGeometricScaffold = !constructionKey;
 
-  const scaleY = kind === "casa" ? 1 : 1.12;
+  const scaleY = kind === "casa" ? 1 : 2.24;
+
+  const houseConstrHalf = (HOUSE_CONSTRUCTION_TEX_PX * B) / 2;
+  const houseConstrBottom = HOUSE_CONSTRUCTION_TEX_CENTER_Y * B + houseConstrHalf;
+  const telConstrHalf = (TELPOCHCALLI_CONSTRUCTION_TEX_PX * B) / 2;
+  const telConstrImgCenterY = houseConstrBottom - telConstrHalf;
+
   const container = scene.add.container(x, y);
   container.setDepth(2);
 
-  const baseY = kind === "casa" ? 38 * B : 52 * B;
+  const baseY = kind === "casa" ? 38 * B : houseConstrBottom - 5 * B;
   container.add(
-    scene.add.ellipse(0, baseY, kind === "casa" ? 96 * B : 124 * B, 26 * B, 0x000000, 0.22),
+    scene.add.ellipse(0, baseY, kind === "casa" ? 96 * B : 248 * B, kind === "casa" ? 26 * B : 30 * B, 0x000000, 0.22),
   );
 
   if (useGeometricScaffold) {
@@ -278,15 +304,22 @@ export function drawBuildingConstructionSite(
         .setStrokeStyle(2, 0x2a1a12),
     );
   } else {
-    const ch = kind === "casa" ? 118 * B : 132 * B;
-    container.add(scene.add.image(0, 8 * B, constructionKey!).setDisplaySize(ch, ch));
+    const chHouse = HOUSE_CONSTRUCTION_TEX_PX * B;
+    const chTel = TELPOCHCALLI_CONSTRUCTION_TEX_PX * B;
+    const img =
+      kind === "casa"
+        ? scene.add
+            .image(0, HOUSE_CONSTRUCTION_TEX_CENTER_Y * B, constructionKey!)
+            .setDisplaySize(chHouse, chHouse)
+        : scene.add.image(0, telConstrImgCenterY, constructionKey!).setDisplaySize(chTel, chTel);
+    container.add(img);
   }
 
   const kindLabel =
     kind === "casa" ? "Casa" : telpochcalliDisplayLabel(cultureNorm);
   container.add(scene.add.text(0, baseY + 34 * B, `${kindLabel} · obra`, labelStyle(12)).setOrigin(0.5));
 
-  const barW = kind === "casa" ? 102 * B : 122 * B;
+  const barW = kind === "casa" ? 102 * B : 244 * B;
   const barH = 11 * B;
   const barY = baseY + 62 * B;
   container.add(scene.add.rectangle(0, barY, barW, barH, 0x1a120d, 0.92).setStrokeStyle(2, 0x3d2b22));
